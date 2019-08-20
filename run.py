@@ -40,6 +40,13 @@ parser.add_argument("--mode", default='train',
 parser.add_argument("--checkpoint",
                     help='full path to the checkpoint file without extension')
 
+parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, default=0.01, help='The epsilon for entropy regularized Sinkhorn')
+parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
+parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
+parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=1.0, help='Lambda for NAT OT loss')
+parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
+parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
+
 FLAGS = parser.parse_args()
 
 def main():
@@ -85,6 +92,19 @@ def main():
     if FLAGS.enc_noise is not None:
         opts['e_noise'] = FLAGS.enc_noise
 
+    if FLAGS.ot_lambda is not None:
+        opts['ot_lambda'] = FLAGS.ot_lambda
+    if FLAGS.train_size is not None:
+        opts['train_size'] = FLAGS.train_size
+    if FLAGS.sinkhorn_iters is not None:
+        opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
+    if FLAGS.sinkhorn_epsilon is not None:
+        opts['sinkhorn_epsilon'] = FLAGS.sinkhorn_epsilon
+    if FLAGS.name is not None:
+        opts['name'] = FLAGS.name
+    if FLAGS.epoch_num is not None:
+        opts['epoch_num'] = FLAGS.epoch_num
+
     if opts['verbose']:
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -106,11 +126,17 @@ def main():
     data = DataHandler(opts)
     assert data.num_points >= opts['batch_size'], 'Training set too small'
 
+    if opts['train_size'] is not None:
+        train_size = opts['train_size']
+    else:
+        train_size = data.num_points
+
     if opts['mode'] == 'train':
 
         # Creating WAE model
-        wae = WAE(opts, data.num_points)
-
+        wae = WAE(opts, train_size)
+        data.num_points = train_size
+        data.data = data.data[:train_size]
         # Training WAE
         wae.train(data)
 

@@ -1,4 +1,4 @@
-#i Copyright 2017 Max Planck Society
+# Copyright 2017 Max Planck Society
 # Distributed under the BSD-3 Software license,
 # (See accompanying file ./LICENSE.txt or copy at
 # https://opensource.org/licenses/BSD-3-Clause)
@@ -15,6 +15,7 @@ import tensorflow as tf
 import logging
 import ops
 import utils
+import sinkhorn
 from models import encoder, decoder, z_adversary
 from datahandler import datashapes
 import improved_wae
@@ -43,6 +44,10 @@ class WAE(object):
 
         self.add_training_placeholders()
         sample_size = tf.shape(self.sample_points)[0]
+        self.sample_size = sample_size
+
+        self.add_nat_placeholders()
+
 
         # -- Transformation ops
 
@@ -82,11 +87,14 @@ class WAE(object):
 
         # -- Objectives, losses, penalties
 
+        self.ot_loss = self.sinkhorn_loss()
+
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
         self.wae_objective = self.loss_reconstruct + \
-                         self.wae_lambda * self.penalty
+                          self.ot_lambda * self.ot_loss + \
+                          self.wae_lambda * self.penalty
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -107,6 +115,17 @@ class WAE(object):
         self.add_savers()
         self.init = tf.global_variables_initializer()
 
+    def add_nat_placeholders(self):
+        opts = self.opts
+        # TODO implement options: spherical, etc..
+        nat_targets_np = np.random.normal(0, 1, (self.train_size, opts['zdim']))
+        nat_targets = tf.constant(nat_targets_np, dtype=tf.float32)
+        x_latents = tf.Variable(tf.zeros((self.train_size, opts['zdim'])), dtype=tf.float32, trainable=False)
+        batch_indices = tf.placeholder(tf.int32, shape=(opts['batch_size'],))
+        self.nat_targets = nat_targets
+        self.x_latents = x_latents
+        self.batch_indices = batch_indices
+
     def add_inputs_placeholders(self):
         opts = self.opts
         shape = self.data_shape
@@ -114,7 +133,6 @@ class WAE(object):
             tf.float32, [None] + shape, name='real_points_ph')
         noise = tf.placeholder(
             tf.float32, [None] + [opts['zdim']], name='noise_ph')
-
         self.sample_points = data
         self.sample_noise = noise
 
@@ -123,9 +141,34 @@ class WAE(object):
         decay = tf.placeholder(tf.float32, name='rate_decay_ph')
         wae_lambda = tf.placeholder(tf.float32, name='lambda_ph')
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
+        ot_lambda = tf.placeholder(tf.float32, name='ot_lambda_ph')
+
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
+        self.ot_lambda = ot_lambda
+
+    def sinkhorn_loss(self):
+        opts = self.opts
+        sample_qz = self.encoded
+        #sample_pz = self.sample_noise
+
+        global_step = tf.train.get_or_create_global_step()
+        #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
+        decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
+
+        n = m = self.train_size
+
+        x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
+        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
+
+        C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
+
+        P, f, g = sinkhorn.Sinkhorn(C, n, m, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        self.P=P
+
+        OT = tf.reduce_mean(P * C)
+        return OT
 
     def pretrain_loss(self):
         opts = self.opts
@@ -393,6 +436,21 @@ class WAE(object):
         self.ae_opt = opt.minimize(loss=self.wae_objective,
                               var_list=encoder_vars + decoder_vars)
 
+        self.ot_grads_and_vars = opt.compute_gradients(loss=self.ot_loss, var_list=self.x_latents)
+        self.ae_grads_and_vars = opt.compute_gradients(loss=self.wae_objective, var_list=encoder_vars + decoder_vars)
+
+        self.merged_grads_and_vars = []
+        for g, v in self.ae_grads_and_vars:
+            if v == self.encoded:
+                g += self.ae_grads_and_vars[0][0]
+                self.merged_grads_and_vars.append((g, v))
+            else:
+                self.merged_grads_and_vars.append((g, v))
+
+        #self.ot_apply_grads = opt.apply_gradients(self.ot_grads_and_vars)
+        self.ae_apply_grads = opt.apply_gradients(self.ae_grads_and_vars)
+        self.merged_apply_grads = opt.apply_gradients(self.merged_grads_and_vars)
+        
         # Discriminator optimizer for WAE-GAN
         if opts['z_test'] == 'gan':
             opt = self.optimizer(lr_adv, self.lr_decay)
@@ -408,6 +466,7 @@ class WAE(object):
                                              var_list=encoder_vars)
         else:
             self.pretrain_opt = None
+
 
     def sample_pz(self, num=100):
         opts = self.opts
@@ -495,6 +554,31 @@ class WAE(object):
             logging.error('WARNING: possible bug in the worst 2d projection')
         return proj_mat, dot_prod
 
+    def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
+        # Calculate latent image of the full dataset
+        latents_list = []
+        if ids is not None:
+            data = data.data[ids]
+        else:
+            data = data.data
+ 
+        for k in range(data.shape[0] // batch_size):
+            batch_images_temp = data[k*batch_size:(k+1)*batch_size]
+            batch_latents_temp, = self.sess.run([self.encoded], feed_dict={self.is_training: False, self.sample_points: batch_images_temp})
+            latents_list.append(batch_latents_temp)
+        latents = np.concatenate(latents_list, axis=0)
+
+        print("Recalculated latents, shape: ", latents.shape)
+
+        if overwrite_placeholder:
+            if ids is not None:
+                #self.x_latents[ids,:].assign(latents).eval(session=self.sess)
+                tf.scatter_update(self.x_latents, ids, latents).eval(session=self.sess)
+            else:
+                self.x_latents.assign(latents).eval(session=self.sess)
+        return latents
+
+
     def train(self, data):
         opts = self.opts
         if opts['verbose']:
@@ -522,6 +606,10 @@ class WAE(object):
         counter = 0
         decay = 1.
         wae_lambda = opts['lambda']
+        ot_lambda = opts['ot_lambda']
+        batch_size = opts['batch_size']
+
+
         # Weights of the extra costs
         extra_cost_weights = []
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -565,6 +653,7 @@ class WAE(object):
                                  global_step=counter)
 
             # Iterate over batches
+            self.recalculate_x_latents(data, train_size, batch_size, overwrite_placeholder=True, ids=None)
 
             for it in range(batches_num):
 
@@ -575,6 +664,8 @@ class WAE(object):
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 
+                self.recalculate_x_latents(data, train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
+
                 # Update encoder and decoder
 
                 feed_d = {
@@ -582,16 +673,21 @@ class WAE(object):
                     self.sample_noise: batch_noise,
                     self.lr_decay: decay,
                     self.wae_lambda: wae_lambda,
-                    self.is_training: True}
+                    self.ot_lambda: ot_lambda,
+                    self.is_training: True,
+                    self.batch_indices: data_ids}
+
+                ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
 
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match] = self.sess.run(
+                [_, loss, loss_rec, loss_match, loss_ot] = self.sess.run(
                     [self.ae_opt,
                      self.wae_objective,
                      self.loss_reconstruct,
-                     self.penalty],
+                     self.penalty,
+                     self.ot_loss],
                     feed_dict=feed_d)
 
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
@@ -630,8 +726,8 @@ class WAE(object):
                 losses_rec.append(loss_rec)
                 losses_match.append(loss_match)
                 if opts['verbose']:
-                    logging.error('Matching penalty after %d steps: %f' % (
-                        counter, losses_match[-1]))
+                    logging.error('Matching penalty after %d steps: %f, ot loss: %f' % (
+                        counter, losses_match[-1], loss_ot))
 
                 # Update regularizer if necessary
                 if opts['lambda_schedule'] == 'adaptive':
