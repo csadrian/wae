@@ -122,6 +122,7 @@ class WAE(object):
         nat_targets = tf.constant(nat_targets_np, dtype=tf.float32)
         x_latents = tf.Variable(tf.zeros((self.train_size, opts['zdim'])), dtype=tf.float32, trainable=False)
         batch_indices = tf.placeholder(tf.int32, shape=(opts['batch_size'],))
+        self.nat_targets_np = nat_targets_np
         self.nat_targets = nat_targets
         self.x_latents = x_latents
         self.batch_indices = batch_indices
@@ -843,7 +844,7 @@ class WAE(object):
                                rec_train[:self.num_pics],
                                rec_test[:self.num_pics],
                                sample_gen,
-                               Qz_train, Qz_test, Pz,
+                               Qz_train, Qz_test, Pz, self.nat_targets_np[:,:2],
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
                                'res_e%04d_mb%05d.png' % (epoch, it))
@@ -881,7 +882,7 @@ class WAE(object):
 def save_plots(opts, sample_train, sample_test,
                recon_train, recon_test,
                sample_gen,
-               Qz_train, Qz_test, Pz,
+               Qz_train, Qz_test, Pz, nat_targets,
                losses_rec, losses_match, blurr_vals,
                encoding_changes,
                filename):
@@ -1001,6 +1002,9 @@ def save_plots(opts, sample_train, sample_test,
 
     # Then the Pz vs Qz plot
     ax = plt.subplot(gs[1, 0])
+
+    plt.scatter(nat_targets[:, 0], nat_targets[:, 1],
+                color='black', s=70, marker='+', label='Targets')
     plt.scatter(Pz[:, 0], Pz[:, 1],
                 color='red', s=70, marker='*', label='Pz')
     plt.scatter(Qz_train[:, 0], Qz_train[:, 1], color='blue',
