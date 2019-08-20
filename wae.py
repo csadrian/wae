@@ -92,9 +92,9 @@ class WAE(object):
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
-        self.wae_objective = self.loss_reconstruct + \
-                          self.ot_lambda * self.ot_loss + \
-                          self.wae_lambda * self.penalty
+        #self.wae_objective = self.loss_reconstruct + \
+        #self.wae_objective = self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
+        self.wae_objective = self.loss_reconstruct + self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -602,6 +602,7 @@ class WAE(object):
             logging.error('Pretraining the encoder')
             self.pretrain_encoder(data)
             logging.error('Pretraining the encoder done.')
+
 
         self.start_time = time.time()
         counter = 0

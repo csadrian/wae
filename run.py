@@ -8,6 +8,17 @@ import improved_wae
 from datahandler import DataHandler
 import utils
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--exp", default='mnist_small',
                     help='dataset [mnist/celebA/dsprites]')
@@ -24,7 +35,7 @@ parser.add_argument("--z_test",
                     help='method of choice for verifying Pz=Qz [mmd/gan]')
 parser.add_argument("--pz",
                     help='Prior latent distribution [normal/sphere/uniform]')
-parser.add_argument("--wae_lambda", help='WAE regularizer', type=int)
+parser.add_argument("--wae_lambda", help='WAE regularizer', type=float)
 parser.add_argument("--work_dir")
 parser.add_argument("--lambda_schedule",
                     help='constant or adaptive')
@@ -46,6 +57,7 @@ parser.add_argument('--train_size', dest='train_size', type=int, default=None, h
 parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=1.0, help='Lambda for NAT OT loss')
 parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
 parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
+parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
 
 FLAGS = parser.parse_args()
 
@@ -92,6 +104,7 @@ def main():
     if FLAGS.enc_noise is not None:
         opts['e_noise'] = FLAGS.enc_noise
 
+
     if FLAGS.ot_lambda is not None:
         opts['ot_lambda'] = FLAGS.ot_lambda
     if FLAGS.train_size is not None:
@@ -104,6 +117,9 @@ def main():
         opts['name'] = FLAGS.name
     if FLAGS.epoch_num is not None:
         opts['epoch_num'] = FLAGS.epoch_num
+    if FLAGS.e_pretrain is not None:
+        opts['e_pretrain'] = FLAGS.e_pretrain
+
 
     if opts['verbose']:
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
