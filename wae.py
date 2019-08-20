@@ -430,7 +430,7 @@ class WAE(object):
         opts = self.opts
         steps_max = 200
         batch_size = opts['e_pretrain_sample_size']
-        for step in xrange(steps_max):
+        for step in range(steps_max):
             train_size = data.num_points
             data_ids = np.random.choice(train_size, min(train_size, batch_size),
                                         replace=False)
@@ -469,14 +469,14 @@ class WAE(object):
             dot_prod = -1
             best_of_runs = 10e5 # Any positive value would do
             updated = False
-            for _ in xrange(3):
+            for _ in range(3):
                 # We will run 3 times from random inits
                 loss_prev = 10e5 # Any positive value would do
                 proj_vars = tf.get_collection(
                     tf.GraphKeys.GLOBAL_VARIABLES, scope='leastGaussian2d')
                 self.sess.run(tf.variables_initializer(proj_vars))
                 step = 0
-                for _ in xrange(5000):
+                for _ in range(5000):
                     self.sess.run(optim, feed_dict={sample:X})
                     step += 1
                     if step % 10 == 0:
@@ -506,7 +506,7 @@ class WAE(object):
         blurr_vals = []
         encoding_changes = []
         enc_test_prev = None
-        batches_num = data.num_points / opts['batch_size']
+        batches_num = data.num_points // opts['batch_size']
         train_size = data.num_points
         self.num_pics = opts['plot_num_pics']
         self.fixed_noise = self.sample_pz(opts['plot_num_pics'])
@@ -535,7 +535,7 @@ class WAE(object):
             feed_dict={self.sample_points: data.data[:self.num_pics]})
         logging.error('Real pictures sharpness = %.5f' % np.min(real_blurr))
 
-        for epoch in xrange(opts["epoch_num"]):
+        for epoch in range(opts["epoch_num"]):
 
             # Update learning rate if necessary
 
@@ -566,7 +566,7 @@ class WAE(object):
 
             # Iterate over batches
 
-            for it in xrange(batches_num):
+            for it in range(batches_num):
 
                 # Sample batches of data points and Pz noise
 
@@ -828,13 +828,13 @@ def save_plots(opts, sample_train, sample_test,
         merged = np.vstack([recon, sample])
         r_ptr = 0
         w_ptr = 0
-        for _ in range(num_pics / 2):
+        for _ in range(num_pics // 2):
             merged[w_ptr] = sample[r_ptr]
             merged[w_ptr + 1] = recon[r_ptr]
             r_ptr += 1
             w_ptr += 2
 
-        for idx in xrange(num_pics):
+        for idx in range(num_pics):
             if greyscale:
                 pics.append(1. - merged[idx, :, :, :])
             else:
@@ -851,7 +851,7 @@ def save_plots(opts, sample_train, sample_test,
 
         assert len(sample) == num_pics
         pics = []
-        for idx in xrange(num_pics):
+        for idx in range(num_pics):
             if greyscale:
                 pics.append(1. - sample[idx, :, :, :])
             else:
@@ -936,7 +936,7 @@ def save_plots(opts, sample_train, sample_test,
     # The loss curves
     ax = plt.subplot(gs[1, 1])
     total_num = len(losses_rec)
-    x_step = max(total_num / 100, 1)
+    x_step = max(total_num // 100, 1)
     x = np.arange(1, len(losses_rec) + 1, x_step)
 
     y = np.log(np.abs(losses_rec[::x_step]))
@@ -947,14 +947,14 @@ def save_plots(opts, sample_train, sample_test,
 
     blurr_mod = np.tile(blurr_vals, (opts['print_every'], 1))
     blurr_mod = blurr_mod.transpose().reshape(-1)
-    x_step = max(len(blurr_mod)/ 100, 1)
+    x_step = max(len(blurr_mod)// 100, 1)
     x = np.arange(1, len(blurr_mod) + 1, x_step)
     y = np.log(blurr_mod[::x_step])
     plt.plot(x, y, linewidth=2, color='orange', label='log(sharpness)')
     if len(encoding_changes) > 0:
         x = np.arange(1, len(losses_rec) + 1)
         y = np.log(encoding_changes)
-        x_step = len(x) / len(y)
+        x_step = len(x) // len(y)
         plt.plot(x[::x_step], y, linewidth=2, color='green', label='log(encoding changes)')
     plt.grid(axis='y')
     plt.legend(loc='upper right')
