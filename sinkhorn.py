@@ -71,8 +71,8 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
     if f is None:
         f = tf.zeros(n_t, np.float32)
     for i in range(niter):
-        g = mina(C-f[:,None],epsilon,a)
-        f = minb(C-g[None,:],epsilon,b)
+        g = mina(C-f[:,None],epsilon)
+        f = minb(C-g[None,:],epsilon)
         # generate the coupling
         #P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
         # check conservation of mass
