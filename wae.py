@@ -92,9 +92,7 @@ class WAE(object):
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
-        #self.wae_objective = self.loss_reconstruct + \
-        #self.wae_objective = self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
-        self.wae_objective = self.loss_reconstruct + self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
+        self.wae_objective = self.rec_lambda * self.loss_reconstruct + self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -143,11 +141,14 @@ class WAE(object):
         wae_lambda = tf.placeholder(tf.float32, name='lambda_ph')
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
         ot_lambda = tf.placeholder(tf.float32, name='ot_lambda_ph')
+        rec_lambda = tf.placeholder(tf.float32, name='rec_lambda_ph')
 
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
         self.ot_lambda = ot_lambda
+        self.rec_lambda = rec_lambda
+
 
     def sinkhorn_loss(self):
         opts = self.opts
@@ -437,6 +438,7 @@ class WAE(object):
         self.ae_opt = opt.minimize(loss=self.wae_objective,
                               var_list=encoder_vars + decoder_vars)
 
+        """
         self.ot_grads_and_vars = opt.compute_gradients(loss=self.ot_loss, var_list=self.x_latents)
         self.ae_grads_and_vars = opt.compute_gradients(loss=self.wae_objective, var_list=encoder_vars + decoder_vars)
 
@@ -451,7 +453,8 @@ class WAE(object):
         #self.ot_apply_grads = opt.apply_gradients(self.ot_grads_and_vars)
         self.ae_apply_grads = opt.apply_gradients(self.ae_grads_and_vars)
         self.merged_apply_grads = opt.apply_gradients(self.merged_grads_and_vars)
-        
+        """
+
         # Discriminator optimizer for WAE-GAN
         if opts['z_test'] == 'gan':
             opt = self.optimizer(lr_adv, self.lr_decay)
@@ -609,6 +612,7 @@ class WAE(object):
         decay = 1.
         wae_lambda = opts['lambda']
         ot_lambda = opts['ot_lambda']
+        rec_lambda = opts['rec_lambda']
         batch_size = opts['batch_size']
 
 
@@ -669,17 +673,18 @@ class WAE(object):
                 self.recalculate_x_latents(data, train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
 
                 # Update encoder and decoder
-
                 feed_d = {
                     self.sample_points: batch_images,
                     self.sample_noise: batch_noise,
                     self.lr_decay: decay,
                     self.wae_lambda: wae_lambda,
                     self.ot_lambda: ot_lambda,
+                    self.rec_lambda: rec_lambda,
                     self.is_training: True,
                     self.batch_indices: data_ids}
+                print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
 
-                ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
+                #ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
 
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
@@ -696,6 +701,10 @@ class WAE(object):
                 # for el in grads:
                 #    print  el
 
+                #a = np.dot(P_np, np.ones(P_np.shape[0]))
+                #print(a)
+                #b = np.dot(np.transpose(P_np), np.ones(P_np.shape[1]))
+                #print(b)
                 # Update the adversary in Z space for WAE-GAN
 
                 if opts['z_test'] == 'gan':
@@ -705,6 +714,7 @@ class WAE(object):
                         feed_dict={self.sample_points: batch_images,
                                    self.sample_noise: batch_noise,
                                    self.wae_lambda: wae_lambda,
+                                   self.rec_lambda: rec_lambda,
                                    self.lr_decay: decay,
                                    self.is_training: True})
 
@@ -834,10 +844,13 @@ class WAE(object):
                         Qz_train = np.dot(enc_train, proj_mat)
                         Qz_test = np.dot(enc_test, proj_mat)
                         Pz = np.dot(pz_noise, proj_mat)
+                        nat_targets_proj = np.dot(self.nat_targets_np, proj_mat)
+
                     else:
                         Qz_train = enc_train[:, :2]
                         Qz_test = enc_test[:, :2]
                         Pz = pz_noise[:, :2]
+                        nat_targets_proj = self.nat_targets_np[:, :2]
 
                     # Making plots
                     save_plots(opts, data.data[:self.num_pics],
@@ -845,7 +858,7 @@ class WAE(object):
                                rec_train[:self.num_pics],
                                rec_test[:self.num_pics],
                                sample_gen,
-                               Qz_train, Qz_test, Pz, self.nat_targets_np[:,:2],
+                               Qz_train, Qz_test, Pz, nat_targets_proj,
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
                                'res_e%04d_mb%05d.png' % (epoch, it), P_np)

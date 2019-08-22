@@ -55,6 +55,7 @@ parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, d
 parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
 parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
 parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=1.0, help='Lambda for NAT OT loss')
+parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, help='Lambda for reconstruction loss')
 parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
 parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
@@ -107,6 +108,8 @@ def main():
 
     if FLAGS.ot_lambda is not None:
         opts['ot_lambda'] = FLAGS.ot_lambda
+    if FLAGS.rec_lambda is not None:
+        opts['rec_lambda'] = FLAGS.rec_lambda
     if FLAGS.train_size is not None:
         opts['train_size'] = FLAGS.train_size
     if FLAGS.sinkhorn_iters is not None:
