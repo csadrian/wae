@@ -165,7 +165,7 @@ class WAE(object):
 
         C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
 
-        P, f, g = sinkhorn.Sinkhorn(C, n, m, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, m, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         self.P=P
 
         OT = tf.reduce_mean(P * C)
@@ -684,12 +684,12 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match, loss_ot] = self.sess.run(
+                [_, loss, loss_rec, loss_match, loss_ot, P_np] = self.sess.run(
                     [self.ae_opt,
                      self.wae_objective,
                      self.loss_reconstruct,
                      self.penalty,
-                     self.ot_loss],
+                     self.ot_loss, self.P],
                     feed_dict=feed_d)
 
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
@@ -848,7 +848,7 @@ class WAE(object):
                                Qz_train, Qz_test, Pz, self.nat_targets_np[:,:2],
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
-                               'res_e%04d_mb%05d.png' % (epoch, it))
+                               'res_e%04d_mb%05d.png' % (epoch, it), P_np)
 
         # Save the final model
 
@@ -886,7 +886,7 @@ def save_plots(opts, sample_train, sample_test,
                Qz_train, Qz_test, Pz, nat_targets,
                losses_rec, losses_match, blurr_vals,
                encoding_changes,
-               filename):
+               filename, P_np):
     """ Generates and saves the plot of the following layout:
         img1 | img2 | img3
         img4 | img6 | img5
@@ -1064,4 +1064,8 @@ def save_plots(opts, sample_train, sample_test,
     utils.create_dir(opts['work_dir'])
     fig.savefig(utils.o_gfile((opts["work_dir"], filename), 'wb'),
                 dpi=dpi, format='png')
+    plt.clf()
+    plt.imshow(P_np, cmap='hot', interpolation='nearest')
+    plt.savefig(filename+".P.png")
     plt.close()
+   

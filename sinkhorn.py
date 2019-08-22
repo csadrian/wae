@@ -6,15 +6,10 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
 
-def mina_u(H,epsilon,a): return -epsilon*tf.log( tf.reduce_sum(a * tf.exp(-H/epsilon),0) )
-def minb_u(H,epsilon,b): return -epsilon*tf.log( tf.reduce_sum(b * tf.exp(-H/epsilon),1) )
-
-def mina(H,epsilon,a): return mina_u(H-tf.reduce_min(H,0),epsilon,a) + tf.reduce_min(H,0);
-def minb(H,epsilon,b): return minb_u(H-tf.reduce_min(H,1)[:,None],epsilon,b) + tf.reduce_min(H,1);
 
 def pdist(x, y):
     dx = x[:, None, :] - y[None, :, :]
-    return tf.reduce_sum(tf.square(dx), -1) / (0.0001)
+    return tf.reduce_sum(tf.square(dx), -1)# / (0.0001)
 
 
 def Sinkhorn_step_nonent(C, f):
@@ -49,16 +44,41 @@ def Sinkhorn(C, n, m, f=None, epsilon=None, niter=10):
     if f is None:
         f = tf.zeros(n_t, np.float32)
     for i in range(niter):
-        #f, g = Sinkhorn_step(C, f, epsilon)
+        f, g = Sinkhorn_step(C, f, epsilon)
 
+        #g = mina(C-f[:,None],epsilon,a)
+        #f = minb(C-g[None,:],epsilon,b)
+        # generate the coupling
+        #P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
+        # check conservation of mass
+    P = tf.exp((-f[:, None]-g[None, :]-C) / epsilon) / tf.cast(n, tf.float32)
+    return P, f, g
+
+
+def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
+    assert epsilon is not None
+    a = tf.ones((n,1))/float(n)
+    b = tf.ones((1,m))/float(m)
+
+    def mina_u(H,epsilon): return -epsilon*tf.log( tf.reduce_sum(a * tf.exp(-H/epsilon),0) )
+    def minb_u(H,epsilon): return -epsilon*tf.log( tf.reduce_sum(b * tf.exp(-H/epsilon),1) )
+
+    def mina(H,epsilon): return mina_u(H-tf.reduce_min(H,0),epsilon) + tf.reduce_min(H,0);
+    def minb(H,epsilon): return minb_u(H-tf.reduce_min(H,1)[:,None],epsilon) + tf.reduce_min(H,1);
+
+    n_t = tf.shape(C)[0]
+
+    if f is None:
+        f = tf.zeros(n_t, np.float32)
+    for i in range(niter):
         g = mina(C-f[:,None],epsilon,a)
         f = minb(C-g[None,:],epsilon,b)
         # generate the coupling
-        P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
+        #P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
         # check conservation of mass
-    #P = tf.exp((-f[:, None]-g[None, :]-C) / epsilon) / tf.cast(n, tf.float32)
+        #Err[it] = np.linalg.norm(np.sum(P,0)-b,1)
+    P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
     return P, f, g
-
 
 
 
