@@ -17,8 +17,8 @@ def distmat(x,y):
     ny = tf.reshape(ny, [1, -1])
 
     # return pairwise euclidead difference matrix
-    #return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) ** 4  # / 0.0001
-    return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
+    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0))
+    #return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
     
 def pdist(x, y):
     return distmat(x, y)
