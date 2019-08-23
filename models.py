@@ -211,11 +211,11 @@ def dcgan_decoder(opts, noise, is_training=False, reuse=False):
     batch_size = tf.shape(noise)[0]
     num_layers = opts['g_num_layers']
     if opts['g_arch'] == 'dcgan':
-        height = output_shape[0] / 2**num_layers
-        width = output_shape[1] / 2**num_layers
+        height = output_shape[0] // 2**num_layers
+        width = output_shape[1] // 2**num_layers
     elif opts['g_arch'] == 'dcgan_mod':
-        height = output_shape[0] / 2**(num_layers - 1)
-        width = output_shape[1] / 2**(num_layers - 1)
+        height = output_shape[0] // 2**(num_layers - 1)
+        width = output_shape[1] // 2**(num_layers - 1)
 
     h0 = ops.linear(
         opts, noise, num_units * height * width, scope='h0_lin')
@@ -225,7 +225,7 @@ def dcgan_decoder(opts, noise, is_training=False, reuse=False):
     for i in range(num_layers - 1):
         scale = 2**(i + 1)
         _out_shape = [batch_size, height * scale,
-                      width * scale, num_units / scale]
+                      width * scale, num_units // scale]
         layer_x = ops.deconv2d(opts, layer_x, _out_shape,
                                scope='h%d_deconv' % i)
         if opts['batch_norm']:

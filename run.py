@@ -7,6 +7,9 @@ from wae import WAE
 import improved_wae
 from datahandler import DataHandler
 import utils
+import datetime
+
+import neptune
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -61,6 +64,10 @@ parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help=
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
 
 FLAGS = parser.parse_args()
+
+now = datetime.datetime.now()
+FLAGS.name = FLAGS.name + now.strftime("%Y%m%d_%H%M%S%f")
+
 
 def main():
 
@@ -125,7 +132,8 @@ def main():
 
 
     if opts['verbose']:
-        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
+        pass
+        #logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
     utils.create_dir(opts['work_dir'])
     utils.create_dir(os.path.join(opts['work_dir'],
@@ -149,6 +157,10 @@ def main():
         train_size = opts['train_size']
     else:
         train_size = data.num_points
+
+    if "NEPTUNE_API_TOKEN" in os.environ:
+        neptune.init(project_qualified_name="csadrian/global-sinkhorn")
+        neptune.create_experiment(params=opts, name=opts['name'])
 
     if opts['mode'] == 'train':
 

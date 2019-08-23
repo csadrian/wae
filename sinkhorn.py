@@ -7,7 +7,21 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
 
+
+def distmat(x,y):
+    nx = tf.reduce_sum(tf.square(x), 1)
+    ny = tf.reduce_sum(tf.square(y), 1)
+    
+    # na as a row and nb as a co"lumn vectors
+    nx = tf.reshape(nx, [-1, 1])
+    ny = tf.reshape(ny, [1, -1])
+
+    # return pairwise euclidead difference matrix
+    #return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) ** 4  # / 0.0001
+    return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
+    
 def pdist(x, y):
+    return distmat(x, y)
     dx = x[:, None, :] - y[None, :, :]
     return tf.reduce_sum(tf.square(dx), -1)# / (0.0001)
 

@@ -591,7 +591,7 @@ class DataHandler(object):
 
         num_samples = 202599
 
-        datapoint_ids = range(1, num_samples + 1)
+        datapoint_ids = list(range(1, num_samples + 1))
         paths = ['%.6d.jpg' % i for i in range(1, num_samples + 1)]
         seed = 123
         random.seed(seed)

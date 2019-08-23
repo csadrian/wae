@@ -12,7 +12,7 @@ config_celebA['plot_num_pics'] = 30
 config_celebA['plot_num_cols'] = 5
 
 config_celebA['input_normalize_sym'] = True
-config_celebA['data_dir'] = 'celebA/datasets/celeba/img_align_celeba'
+config_celebA['data_dir'] = 'datasets/celeba/img_align_celeba'
 config_celebA['celebA_crop'] = 'closecrop' # closecrop, resizecrop
 
 config_celebA['optimizer'] = 'adam' # adam, sgd

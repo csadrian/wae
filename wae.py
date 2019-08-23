@@ -16,12 +16,15 @@ import logging
 import ops
 import utils
 import sinkhorn
+import neptune
+import PIL
 from models import encoder, decoder, z_adversary
 from datahandler import datashapes
 import improved_wae
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import io
 
 class WAE(object):
 
@@ -741,6 +744,17 @@ class WAE(object):
                     logging.error('Matching penalty after %d steps: %f, ot loss: %f' % (
                         counter, losses_match[-1], loss_ot))
 
+
+                if 'NEPTUNE_API_TOKEN' in os.environ:
+                    neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
+                    neptune.send_metric('loss_rec', x=counter, y=loss_rec)
+                    neptune.send_metric('loss_ot', x=counter, y=loss_ot)
+                    neptune.send_metric('loss', x=counter, y=loss)
+                    neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
+                    neptune.send_metric('ot_lambda', x=counter, y=ot_lambda)
+                    neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                    neptune.send_metric('lr', x=counter, y=decay)
+                
                 # Update regularizer if necessary
                 if opts['lambda_schedule'] == 'adaptive':
                     if wait_lambda >= 999 and len(losses_rec) > 0:
@@ -853,7 +867,7 @@ class WAE(object):
                         nat_targets_proj = self.nat_targets_np[:, :2]
 
                     # Making plots
-                    save_plots(opts, data.data[:self.num_pics],
+                    summary_plot, transport_plot = save_plots(opts, data.data[:self.num_pics],
                                data.test_data[:self.num_pics],
                                rec_train[:self.num_pics],
                                rec_test[:self.num_pics],
@@ -862,6 +876,12 @@ class WAE(object):
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
                                'res_e%04d_mb%05d.png' % (epoch, it), P_np)
+
+                    if 'NEPTUNE_API_TOKEN' in os.environ:
+                        neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
+                        neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
+                        neptune.send_image('transport_plot', transport_plot)
+                        neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
 
@@ -1077,8 +1097,21 @@ def save_plots(opts, sample_train, sample_test,
     utils.create_dir(opts['work_dir'])
     fig.savefig(utils.o_gfile((opts["work_dir"], filename), 'wb'),
                 dpi=dpi, format='png')
+
+    buffer = io.StringIO()
+    canvas = plt.get_current_fig_manager().canvas
+    canvas.draw()
+    summary_plot = PIL.Image.fromstring('RGB', canvas.get_width_height(), canvas.tostring_rgb())
+
     plt.clf()
     plt.imshow(P_np, cmap='hot', interpolation='nearest')
     plt.savefig(filename+".P.png")
-    plt.close()
+
+    buffer = io.StringIO()
+    canvas = plt.get_current_fig_manager().canvas
+    canvas.draw()
+    transport_plot = PIL.Image.fromstring('RGB', canvas.get_width_height(), canvas.tostring_rgb())
    
+    plt.close()
+
+    return (summary_plot, transport_plot)
