@@ -1101,7 +1101,7 @@ def save_plots(opts, sample_train, sample_test,
     buffer = io.StringIO()
     canvas = plt.get_current_fig_manager().canvas
     canvas.draw()
-    summary_plot = PIL.Image.fromstring('RGB', canvas.get_width_height(), canvas.tostring_rgb())
+    summary_plot = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
 
     plt.clf()
     plt.imshow(P_np, cmap='hot', interpolation='nearest')
@@ -1110,7 +1110,7 @@ def save_plots(opts, sample_train, sample_test,
     buffer = io.StringIO()
     canvas = plt.get_current_fig_manager().canvas
     canvas.draw()
-    transport_plot = PIL.Image.fromstring('RGB', canvas.get_width_height(), canvas.tostring_rgb())
+    transport_plot = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
    
     plt.close()
 
