@@ -167,7 +167,7 @@ def main():
         # Creating WAE model
         wae = WAE(opts, train_size)
         data.num_points = train_size
-        data.data = data.data[:train_size]
+        
         # Training WAE
         wae.train(data)
 
