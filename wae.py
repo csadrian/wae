@@ -1105,7 +1105,7 @@ def save_plots(opts, sample_train, sample_test,
 
     plt.clf()
     plt.imshow(P_np, cmap='hot', interpolation='nearest')
-    plt.savefig(filename+".P.png")
+    plt.savefig(os.path.join(opts["work_dir"],filename+".P.png"))
 
     buffer = io.StringIO()
     canvas = plt.get_current_fig_manager().canvas
