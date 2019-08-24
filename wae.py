@@ -567,7 +567,7 @@ class WAE(object):
         if ids is not None:
             data = data.data[ids]
         else:
-            data = data.data
+            data = data.data[:self.train_size]
  
         for k in range(data.shape[0] // batch_size):
             batch_images_temp = data[k*batch_size:(k+1)*batch_size]
