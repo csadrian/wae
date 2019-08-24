@@ -597,8 +597,8 @@ class WAE(object):
         blurr_vals = []
         encoding_changes = []
         enc_test_prev = None
-        batches_num = data.num_points // opts['batch_size']
-        train_size = data.num_points
+        batches_num = self.train_size // opts['batch_size']
+        train_size = self.train_size
         self.num_pics = opts['plot_num_pics']
         self.fixed_noise = self.sample_pz(opts['plot_num_pics'])
 
