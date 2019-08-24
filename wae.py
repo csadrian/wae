@@ -497,8 +497,7 @@ class WAE(object):
         steps_max = 200
         batch_size = opts['e_pretrain_sample_size']
         for step in range(steps_max):
-            train_size = data.num_points
-            data_ids = np.random.choice(train_size, min(train_size, batch_size),
+            data_ids = np.random.choice(self.train_size, min(self.train_size, batch_size),
                                         replace=False)
             batch_images = data.data[data_ids].astype(np.float)
             batch_noise =  self.sample_pz(batch_size)
@@ -565,12 +564,12 @@ class WAE(object):
         # Calculate latent image of the full dataset
         latents_list = []
         if ids is not None:
-            data = data.data[ids]
+            data_temp = data.data[ids]
         else:
-            data = data.data[:self.train_size]
+            data_temp = data.data[:self.train_size]
  
-        for k in range(data.shape[0] // batch_size):
-            batch_images_temp = data[k*batch_size:(k+1)*batch_size]
+        for k in range(data_temp.shape[0] // batch_size):
+            batch_images_temp = data_temp[k*batch_size:(k+1)*batch_size]
             batch_latents_temp, = self.sess.run([self.encoded], feed_dict={self.is_training: False, self.sample_points: batch_images_temp})
             latents_list.append(batch_latents_temp)
         latents = np.concatenate(latents_list, axis=0)
@@ -598,7 +597,6 @@ class WAE(object):
         encoding_changes = []
         enc_test_prev = None
         batches_num = self.train_size // opts['batch_size']
-        train_size = self.train_size
         self.num_pics = opts['plot_num_pics']
         self.fixed_noise = self.sample_pz(opts['plot_num_pics'])
 
@@ -662,18 +660,16 @@ class WAE(object):
                                  global_step=counter)
 
             # Iterate over batches
-            self.recalculate_x_latents(data, train_size, batch_size, overwrite_placeholder=True, ids=None)
+            self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
             for it in range(batches_num):
 
                 # Sample batches of data points and Pz noise
 
                 data_ids = np.random.choice(
-                    train_size, opts['batch_size'], replace=False)
+                    self.train_size, opts['batch_size'], replace=False)
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
-
-                self.recalculate_x_latents(data, train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
 
                 # Update encoder and decoder
                 feed_d = {
@@ -700,6 +696,7 @@ class WAE(object):
                      self.ot_loss, self.P],
                     feed_dict=feed_d)
 
+
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
                 # for el in grads:
                 #    print  el
@@ -720,6 +717,9 @@ class WAE(object):
                                    self.rec_lambda: rec_lambda,
                                    self.lr_decay: decay,
                                    self.is_training: True})
+
+
+                self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
 
                 # Update learning rate if necessary
 
