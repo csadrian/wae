@@ -41,17 +41,22 @@ def optimalMatching(latentPositions, natPositions):
 
 
 def main():
-    n = 100
-    d = 2
+    n = 200
+    d = 20
     VIDEO_SIZE = 512
+
+    # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
     start_np = np.random.normal(size=(n, d)).astype(np.float32)
-    start_np[:, 0] += 2
+    start_np *= 2
     start_np[:, 0] += start_np[:, 1]
+    start_np += 2
 
     target_np = np.random.normal(size=(n, d)).astype(np.float32)
     print(np.mean(target_np[:, :4], axis=0), "\n", np.cov(target_np[:, :4].T))
 
     do_initial_matching = False
+    do_rematching = False
+
     if do_initial_matching:
         initial_matching = optimalMatching(start_np, target_np)
         target_np = target_np[initial_matching]
@@ -88,19 +93,18 @@ def main():
                 # frame = sinkhorn.draw_points(next_pos_np, VIDEO_SIZE)
                 # frame = sinkhorn.draw_edges(next_pos_np[next_pos_np[:, 0].argsort()], target_np[target_np[:, 0].argsort()], VIDEO_SIZE)
 
-                do_rematching = False
                 if do_rematching:
                     matching = optimalMatching(next_pos_np, target_np)
                     target_np_aligned = target_np[matching]
                 else:
                     target_np_aligned = target_np
 
-                frame = sinkhorn.draw_edges(next_pos_np, target_np_aligned, VIDEO_SIZE)
+                draw_edges = do_initial_matching or do_rematching
+                frame = sinkhorn.draw_edges(next_pos_np, target_np_aligned, VIDEO_SIZE, edges=draw_edges)
+                video.write_frame(frame)
 
                 print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",
                     np.mean(np.linalg.norm(next_pos_np - target_np_aligned, axis=1)))
                 print(np.mean(next_pos_np[:, :4], axis=0), "\n", np.cov(next_pos_np[:, :4].T))
-
-                video.write_frame(frame)
 
 main()
