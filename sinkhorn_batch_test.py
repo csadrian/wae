@@ -49,9 +49,12 @@ def grid(a, b):
 
 
 def main():
-    n = 200
+    n = 1000
     d = 20
+    bs = 50
+    assert n % bs == 0
     VIDEO_SIZE = 512
+    minibatch_rounds = 30 * (n // bs)
 
     # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
     start_np = np.random.normal(size=(n, d)).astype(np.float32)
@@ -65,7 +68,7 @@ def main():
         # the simplest case where convergence to a suboptimal solution can be presented
         # is two 1d grids with different increments.
         start_np =  (grid(n, 1) + 1.0)       + np.array([-3,  0.0])
-        target_np = (grid(n, 1) + 1.0) * 1.9 + np.array([0.0, 0.0])
+        target_np = (grid(n, 1) + 1.0) * 1.9 + np.array([0.0, 0.0]) 
 
     assert start_np.shape == target_np.shape == (n, d)
 
@@ -81,6 +84,7 @@ def main():
     with tf.Session() as sess:
         pos = tf.Variable(start_np.astype(np.float32))
         target = tf.constant(target_np.astype(np.float32))
+        mask = tf.placeholder(tf.float32, shape=(n, d))
 
         C = sinkhorn.pdist(pos, target) / (0.01) ** 2
         P, f, g = sinkhorn.Sinkhorn(C, n=n, m=n, f=None, epsilon=0.01, niter=10)
@@ -90,22 +94,22 @@ def main():
         OT = tf.reduce_mean(P * C) * n
 
         optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
+        # optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0)
 
-        train_step = optimizer.minimize(OT, var_list=pos)
-
-        # did not help anyway
-        clip_gradients = False
-        if clip_gradients:
-            grad_vars = optimizer.compute_gradients(OT)
-            clipped_gvs = [(tf.clip_by_value(grad, -100, +100), var) for grad, var in grad_vars]
-            train_step = optimizer.apply_gradients(clipped_gvs)
+        grad_vars = optimizer.compute_gradients(OT)
+        masked_gvs = [(mask * grad, var) for grad, var in grad_vars]
+        train_step = optimizer.apply_gradients(masked_gvs)
 
         sess.run(tf.global_variables_initializer())
 
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
-            for indx in range(300):
-                sess.run(train_step)
+            for indx in range(minibatch_rounds):
+                ids = np.random.choice(n, bs, replace=False)
+                mask_np = np.zeros((n, d))
+                mask_np[ids, :] = 1
+                sess.run(train_step, feed_dict={mask: mask_np})
+
                 next_pos_np = sess.run(pos)
                 # frame = sinkhorn.draw_points(next_pos_np, VIDEO_SIZE)
                 # frame = sinkhorn.draw_edges(next_pos_np[next_pos_np[:, 0].argsort()], target_np[target_np[:, 0].argsort()], VIDEO_SIZE)
