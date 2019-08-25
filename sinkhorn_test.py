@@ -45,21 +45,27 @@ def main():
     d = 2
     VIDEO_SIZE = 512
     start_np = np.random.normal(size=(n, d)).astype(np.float32)
-    target_np = 0.5 * np.random.normal(size=(n, d)).astype(np.float32)
+    start_np[:, 0] += 2
+    start_np[:, 0] += start_np[:, 1]
 
-    # initial_matching = optimalMatching(start_np, target_np)
-    # target_np = target_np[initial_matching]
+    target_np = np.random.normal(size=(n, d)).astype(np.float32)
+    print(np.mean(target_np[:, :4], axis=0), "\n", np.cov(target_np[:, :4].T))
+
+    do_initial_matching = False
+    if do_initial_matching:
+        initial_matching = optimalMatching(start_np, target_np)
+        target_np = target_np[initial_matching]
 
     with tf.Session() as sess:
         pos = tf.Variable(start_np.astype(np.float32))
         target = tf.constant(target_np.astype(np.float32))
 
         C = sinkhorn.pdist(pos, target) / (0.01) ** 2
-        P, f, g = sinkhorn.Sinkhorn_log_domain(C, n=n, m=n, f=None, epsilon=0.01, niter=10)
+        P, f, g = sinkhorn.Sinkhorn(C, n=n, m=n, f=None, epsilon=0.01, niter=10)
 
         # g = tf.matmul(P, target) * n - pos
         # next_pos = pos + 0.1 * g
-        OT = tf.reduce_mean(P * C)
+        OT = tf.reduce_mean(P * C) * n
 
         optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
@@ -82,8 +88,8 @@ def main():
                 # frame = sinkhorn.draw_points(next_pos_np, VIDEO_SIZE)
                 # frame = sinkhorn.draw_edges(next_pos_np[next_pos_np[:, 0].argsort()], target_np[target_np[:, 0].argsort()], VIDEO_SIZE)
 
-                rematch = False
-                if rematch:
+                do_rematching = False
+                if do_rematching:
                     matching = optimalMatching(next_pos_np, target_np)
                     target_np_aligned = target_np[matching]
                 else:
@@ -93,6 +99,7 @@ def main():
 
                 print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",
                     np.mean(np.linalg.norm(next_pos_np - target_np_aligned, axis=1)))
+                print(np.mean(next_pos_np[:, :4], axis=0), "\n", np.cov(next_pos_np[:, :4].T))
 
                 video.write_frame(frame)
 

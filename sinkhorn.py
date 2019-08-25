@@ -15,7 +15,7 @@ def distmat(x,y):
 
     # return pairwise euclidean difference matrix
     sqrt_epsilon = 0.0000000001
-    return tf.sqrt(sqrt_epsilon + tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0))
+    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
     #return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
 
 
@@ -87,7 +87,7 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 
 def draw_points(p, w):
     img = np.zeros((w, w, 3), np.uint8)
-    p = np.int32(w / 2 + p * w / 4)
+    p = np.int32(w / 2 + p[:, :2] * w / 4)
     # print(p)
     for x, y in p:
         cv2.circle(img, (x, y), 2, (255, 255, 255), -1, cv2.CV_AA, shift=0)
@@ -96,8 +96,8 @@ def draw_points(p, w):
 
 def draw_edges(p1, p2, w):
     img = np.zeros((w, w, 3), np.uint8)
-    p1 = np.int32(w / 2 + p1 * w / 4)
-    p2 = np.int32(w / 2 + p2 * w / 4)
+    p1 = np.int32(w / 2 + p1[:, :2] * w / 8)
+    p2 = np.int32(w / 2 + p2[:, :2] * w / 8)
     for (x1, y1), (x2, y2) in zip(p1, p2):
         cv2.line(img, (x1, y1), (x2, y2), (255, 255, 255), 1, cv2.LINE_AA)
     for (x1, y1), (x2, y2) in zip(p1, p2):
