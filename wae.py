@@ -715,7 +715,7 @@ class WAE(object):
                     feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
-                    zxz_loss_np, = self.sess.run([self.zxz_opt], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
+                    _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('loss_zxz', x=counter, y=zxz_loss_np)
 
