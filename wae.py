@@ -91,6 +91,7 @@ class WAE(object):
         # -- Objectives, losses, penalties
 
         self.ot_loss = self.sinkhorn_loss()
+        self.zxz_loss = self.zxz_loss()
 
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct = self.reconstruction_loss(
@@ -145,12 +146,14 @@ class WAE(object):
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
         ot_lambda = tf.placeholder(tf.float32, name='ot_lambda_ph')
         rec_lambda = tf.placeholder(tf.float32, name='rec_lambda_ph')
+        zxz_lambda = tf.placeholder(tf.float32, name='zxz_lambda_ph')
 
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
         self.ot_lambda = ot_lambda
         self.rec_lambda = rec_lambda
+        self.zxz_lambda = zxz_lambda
 
 
     def sinkhorn_loss(self):
@@ -174,6 +177,16 @@ class WAE(object):
 
         OT = tf.reduce_mean(P * C)
         return OT
+
+    def zxz_loss(self):
+        opts = self.opts
+
+        z = self.sample_noise
+        decoded, decoded_logits = decoder(opts, reuse=True, noise=z, is_training=self.is_training)
+        zxz, _ = encoder(opts, reuse=True, inputs=decoded, is_training=self.is_training)
+        loss = tf.reduce_sum(tf.square(zxz - z), axis=[1])
+        self.zxz_loss = tf.reduce_mean(loss)
+        return self.zxz_loss
 
     def pretrain_loss(self):
         opts = self.opts
@@ -441,6 +454,10 @@ class WAE(object):
         self.ae_opt = opt.minimize(loss=self.wae_objective,
                               var_list=encoder_vars + decoder_vars)
 
+
+        opt = self.optimizer(lr, self.lr_decay)
+        self.zxz_opt = opt.minimize(loss=self.zxz_lambda*self.zxz_loss, var_list=decoder_vars)
+
         """
         self.ot_grads_and_vars = opt.compute_gradients(loss=self.ot_loss, var_list=self.x_latents)
         self.ae_grads_and_vars = opt.compute_gradients(loss=self.wae_objective, var_list=encoder_vars + decoder_vars)
@@ -614,6 +631,7 @@ class WAE(object):
         wae_lambda = opts['lambda']
         ot_lambda = opts['ot_lambda']
         rec_lambda = opts['rec_lambda']
+        zxz_lambda = opts['zxz_lambda']
         batch_size = opts['batch_size']
 
 
@@ -696,6 +714,10 @@ class WAE(object):
                      self.ot_loss, self.P],
                     feed_dict=feed_d)
 
+                if zxz_lambda != 0.0:
+                    zxz_loss_np, = self.sess.run([self.zxz_opt], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
+                    if 'NEPTUNE_API_TOKEN' in os.environ:
+                        neptune.send_metric('loss_zxz', x=counter, y=zxz_loss_np)
 
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
                 # for el in grads:
