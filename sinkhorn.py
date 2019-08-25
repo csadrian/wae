@@ -5,21 +5,20 @@ import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
-
-
-
 def distmat(x,y):
     nx = tf.reduce_sum(tf.square(x), 1)
     ny = tf.reduce_sum(tf.square(y), 1)
-    
-    # na as a row and nb as a co"lumn vectors
+
+    # na as a row and nb as a column vectors
     nx = tf.reshape(nx, [-1, 1])
     ny = tf.reshape(ny, [1, -1])
 
-    # return pairwise euclidead difference matrix
-    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0))
+    # return pairwise euclidean difference matrix
+    sqrt_epsilon = 0.0000000001
+    return tf.sqrt(sqrt_epsilon + tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0))
     #return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
-    
+
+
 def pdist(x, y):
     return distmat(x, y)
     dx = x[:, None, :] - y[None, :, :]
@@ -50,21 +49,11 @@ def Sinkhorn_step(C, f, epsilon):
 
 def Sinkhorn(C, n, m, f=None, epsilon=None, niter=10):
     assert epsilon is not None
-    a = tf.ones((n,1))/float(n)
-    b = tf.ones((1,m))/float(m)
-
     n_t = tf.shape(C)[0]
-
     if f is None:
         f = tf.zeros(n_t, np.float32)
     for i in range(niter):
         f, g = Sinkhorn_step(C, f, epsilon)
-
-        #g = mina(C-f[:,None],epsilon,a)
-        #f = minb(C-g[None,:],epsilon,b)
-        # generate the coupling
-        #P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
-        # check conservation of mass
     P = tf.exp((-f[:, None]-g[None, :]-C) / epsilon) / tf.cast(n, tf.float32)
     return P, f, g
 
