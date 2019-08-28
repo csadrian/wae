@@ -659,6 +659,8 @@ class WAE(object):
         #with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
         if True:
 
+          self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
+
           for epoch in range(opts["epoch_num"]):
 
             # Update learning rate if necessary
@@ -689,13 +691,18 @@ class WAE(object):
                                  global_step=counter)
 
             # Iterate over batches
-            self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
+            if self.opts['nat_resampling'] == 'epoch':
+                self.resample_nat_targets()
+
+            #self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
             for it in range(batches_num):
 
-                # Sample batches of data points and Pz noise
+                if self.opts['nat_resampling'] == 'batch':
+                    self.resample_nat_targets()
 
+                # Sample batches of data points and Pz noise
                 data_ids = np.random.choice(
                     self.train_size, opts['batch_size'], replace=False)
 
@@ -704,15 +711,20 @@ class WAE(object):
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 
-                self.resample_nat_targets()
 
-                if False and it < 300:
+                if False:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False, self.nat_targets: self.nat_targets_np})
                     print("frame,", nat_targets_np.shape)
                     frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, edges=False)
                     video.write_frame(frame)
                     print("frame")
 
+                """                
+                if epoch < 1:
+                    rec_lambda = 0.0
+                else:
+                    rec_lambda = opts['rec_lambda']
+                """
                 # Update encoder and decoder
                 feed_d = {
                     self.sample_points: batch_images,
