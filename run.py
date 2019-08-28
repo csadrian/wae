@@ -57,12 +57,14 @@ parser.add_argument("--checkpoint",
 parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, default=0.01, help='The epsilon for entropy regularized Sinkhorn')
 parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
 parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
+parser.add_argument('--nat_size', dest='nat_size', type=int, default=None, help='NAT size')
 parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=1.0, help='Lambda for NAT OT loss')
 parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, help='Lambda for reconstruction loss')
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
 parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
 parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
+parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
 
 FLAGS = parser.parse_args()
 
@@ -122,12 +124,19 @@ def main():
         opts['zxz_lambda'] = FLAGS.zxz_lambda
     if FLAGS.train_size is not None:
         opts['train_size'] = FLAGS.train_size
+    if FLAGS.nat_size is not None:
+        opts['nat_size'] = FLAGS.nat_size
+    else:
+        opts['nat_size'] = FLAGS.train_size
+
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
     if FLAGS.sinkhorn_epsilon is not None:
         opts['sinkhorn_epsilon'] = FLAGS.sinkhorn_epsilon
     if FLAGS.name is not None:
         opts['name'] = FLAGS.name
+    if FLAGS.tags is not None:
+        opts['tags'] = FLAGS.tags
     if FLAGS.epoch_num is not None:
         opts['epoch_num'] = FLAGS.epoch_num
     if FLAGS.e_pretrain is not None:
@@ -164,6 +173,10 @@ def main():
     if "NEPTUNE_API_TOKEN" in os.environ:
         neptune.init(project_qualified_name="csadrian/global-sinkhorn")
         exp = neptune.create_experiment(params=opts, name=opts['name'])
+
+        for tag in opts['tags'].split(','):
+            neptune.append_tag(tag)
+
 
     if opts['mode'] == 'train':
 

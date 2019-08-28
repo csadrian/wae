@@ -25,6 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import io
+from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 class WAE(object):
 
@@ -35,6 +36,7 @@ class WAE(object):
         self.sess = tf.Session()
         self.opts = opts
         self.train_size = train_size
+        self.nat_pos = 0
 
         # -- Some of the parameters for future use
 
@@ -120,14 +122,13 @@ class WAE(object):
     def add_nat_placeholders(self):
         opts = self.opts
         # TODO implement options: spherical, etc..
-        nat_targets_np = np.random.normal(0, 1, (self.train_size, opts['zdim']))
-        nat_targets = tf.constant(nat_targets_np, dtype=tf.float32)
-        x_latents = tf.Variable(tf.zeros((self.train_size, opts['zdim'])), dtype=tf.float32, trainable=False)
-        batch_indices = tf.placeholder(tf.int32, shape=(opts['batch_size'],))
-        self.nat_targets_np = nat_targets_np
-        self.nat_targets = nat_targets
-        self.x_latents = x_latents
-        self.batch_indices = batch_indices
+        self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
+        self.nat_targets = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim'])), dtype=tf.float32, trainable=False)
+        self.batch_indices_mod = tf.placeholder(tf.int32, shape=(opts['batch_size'],))
+
+    def resample_nat_targets(self):
+        self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
 
     def add_inputs_placeholders(self):
         opts = self.opts
@@ -155,19 +156,21 @@ class WAE(object):
         self.rec_lambda = rec_lambda
         self.zxz_lambda = zxz_lambda
 
+        #self.ids_to_update_ph = tf.placeholder(tf.int32, shape=(self.opts['batch_size'])
+        #self.values_for_update_ph = tf.placeholder(tf.float32, shape=(self.opts['batch_size'])
+        #self.update_latents_op = tf.scatter_update(self.x_latents, self.ids_to_update_ph, latents)
 
     def sinkhorn_loss(self):
         opts = self.opts
         sample_qz = self.encoded
-        #sample_pz = self.sample_noise
 
-        global_step = tf.train.get_or_create_global_step()
+        #global_step = tf.train.get_or_create_global_step()
         #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
 
-        n = m = self.train_size
+        n = m = opts['nat_size']
 
-        x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
+        x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
 
         C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
@@ -175,7 +178,7 @@ class WAE(object):
         P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, m, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         self.P=P
 
-        OT = tf.reduce_mean(P * C)
+        OT = tf.reduce_sum(P * C)
         return OT
 
     def zxz_loss(self):
@@ -578,12 +581,13 @@ class WAE(object):
         return proj_mat, dot_prod
 
     def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
+
         # Calculate latent image of the full dataset
         latents_list = []
         if ids is not None:
             data_temp = data.data[ids]
         else:
-            data_temp = data.data[:self.train_size]
+            data_temp = data.data[:self.opts['nat_size']]
  
         for k in range(data_temp.shape[0] // batch_size):
             batch_images_temp = data_temp[k*batch_size:(k+1)*batch_size]
@@ -595,10 +599,12 @@ class WAE(object):
 
         if overwrite_placeholder:
             if ids is not None:
-                #self.x_latents[ids,:].assign(latents).eval(session=self.sess)
-                tf.scatter_update(self.x_latents, ids, latents).eval(session=self.sess)
+                ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])]
+                tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
+                self.nat_pos = (self.nat_pos + self.opts['batch_size']) % self.opts['nat_size']
             else:
                 self.x_latents.assign(latents).eval(session=self.sess)
+                self.nat_pos = 0
         return latents
 
 
@@ -648,7 +654,12 @@ class WAE(object):
             feed_dict={self.sample_points: data.data[:self.num_pics]})
         logging.error('Real pictures sharpness = %.5f' % np.min(real_blurr))
 
-        for epoch in range(opts["epoch_num"]):
+
+        #VIDEO_SIZE = 512
+        #with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
+        if True:
+
+          for epoch in range(opts["epoch_num"]):
 
             # Update learning rate if necessary
 
@@ -680,14 +691,27 @@ class WAE(object):
             # Iterate over batches
             self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
+
             for it in range(batches_num):
 
                 # Sample batches of data points and Pz noise
 
                 data_ids = np.random.choice(
                     self.train_size, opts['batch_size'], replace=False)
+
+                data_ids_mod = np.array([i in for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size']))
+
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
+
+                self.resample_nat_targets()
+
+                if False and it < 300:
+                    (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False, self.nat_targets: self.nat_targets_np})
+                    print("frame,", nat_targets_np.shape)
+                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, edges=False)
+                    video.write_frame(frame)
+                    print("frame")
 
                 # Update encoder and decoder
                 feed_d = {
@@ -698,7 +722,8 @@ class WAE(object):
                     self.ot_lambda: ot_lambda,
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
-                    self.batch_indices: data_ids}
+                    self.nat_targets: self.nat_targets_np,
+                    self.batch_indices_mod: data_ids_mod}
                 print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
 
                 #ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
@@ -906,7 +931,7 @@ class WAE(object):
                         neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
-
+        video.close()
         if epoch > 0:
             self.saver.save(self.sess,
                              os.path.join(opts['work_dir'],

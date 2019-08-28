@@ -101,8 +101,8 @@ def draw_edges(p1, p2, w, edges=True):
     if edges:
         for (x1, y1), (x2, y2) in zip(p1, p2):
             cv2.line(img, (x1, y1), (x2, y2), (255, 255, 255), 1, cv2.LINE_AA)
-    for (x1, y1), (x2, y2) in zip(p1, p2):
+    for (x2, y2) in p2:
         cv2.circle(img, (x2, y2), 5, (0, 0, 255), -1, cv2.CV_AA)
-    for (x1, y1), (x2, y2) in zip(p1, p2):
+    for (x1, y1) in p1:
         cv2.circle(img, (x1, y1), 3, (255, 0, 0), -1, cv2.CV_AA)
     return img
