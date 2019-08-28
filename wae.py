@@ -699,7 +699,7 @@ class WAE(object):
                 data_ids = np.random.choice(
                     self.train_size, opts['batch_size'], replace=False)
 
-                data_ids_mod = np.array([i in for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size']))
+                data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size']))
 
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
