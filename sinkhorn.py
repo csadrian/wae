@@ -5,6 +5,60 @@ import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
+def slices_to_dims(slice_indices):
+  """
+  Args:
+    slice_indices: An [N, k] Tensor mapping to column indices.
+  Returns:
+    An index Tensor with shape [N * k, 2], corresponding to indices suitable for
+    passing to SparseTensor.
+  """
+  slice_indices = tf.cast(slice_indices, tf.int64)
+  num_rows = tf.shape(slice_indices, out_type=tf.int64)[0]
+  row_range = tf.range(num_rows)
+  item_numbers = slice_indices * num_rows + tf.expand_dims(row_range, axis=1)
+  item_numbers_flat = tf.reshape(item_numbers, [-1])
+  return tf.stack([item_numbers_flat % num_rows,
+                   item_numbers_flat // num_rows], axis=1)
+
+
+# Every row zeroed except top k elements of row.
+def zeroed_except_top_k_no_gradient(dense_matrix, k):
+    dense_shape = dense_matrix.get_shape()
+    top_values, top_indices = tf.nn.top_k(dense_matrix, k=k)
+    sparse_indices = slices_to_dims(top_indices)
+    sparse_tensor = tf.sparse_reorder(tf.SparseTensor(
+        indices=sparse_indices,
+        values=tf.reshape(top_values, [-1]),
+        dense_shape=dense_shape))
+    densified_top = tf.sparse_tensor_to_dense(sparse_tensor)
+    return densified_top
+
+
+# Every element set to large number except smallest k elements of each column.
+def infd_except_bottom_k(dense_matrix, k):
+    dense_matrix = tf.transpose(dense_matrix) # we want columns now
+    dense_shape = dense_matrix.get_shape()
+    rows, columns = dense_shape
+    top_values, top_indices = tf.nn.top_k(dense_matrix, k=rows-k)
+    sparse_indices = slices_to_dims(top_indices)
+    sparse_tensor = tf.sparse_reorder(tf.SparseTensor(
+        indices=sparse_indices,
+        values=tf.ones_like(tf.reshape(top_values, [-1])),
+        dense_shape=dense_shape))
+    densified_top = tf.sparse_tensor_to_dense(sparse_tensor)
+    merged = tf.where(densified_top > 0, 1000 * tf.ones_like(dense_matrix) , dense_matrix)
+    merged = tf.transpose(merged) # we reverse the transpose that we've started with.
+    return merged
+
+
+def trunc_test():
+    with tf.Session() as sess:
+        a = tf.constant(np.random.normal(size=(6, 6)).astype(np.float32))
+        b = sess.run(infd_except_bottom_k(a, 3))
+        print(b)
+
+
 def distmat(x,y):
     nx = tf.reduce_sum(tf.square(x), 1)
     ny = tf.reduce_sum(tf.square(y), 1)
@@ -15,11 +69,32 @@ def distmat(x,y):
 
     # return pairwise euclidean difference matrix
     sqrt_epsilon = 0.0000000001
-    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
-    #return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
+    d = tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
+    return d
+
+
+def sparse_distmat(x,y):
+    nx = tf.reduce_sum(tf.square(x), 1)
+    ny = tf.reduce_sum(tf.square(y), 1)
+
+    # na as a row and nb as a column vectors
+    nx = tf.reshape(nx, [-1, 1])
+    ny = tf.reshape(ny, [1, -1])
+
+    # return pairwise euclidean difference matrix
+    sqrt_epsilon = 0.0000000001
+    d = tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
+    idx = tf.where(tf.less(d, 0.1))
+    sparse = tf.SparseTensor(idx, tf.gather_nd(d, idx), d.get_shape())
+    return sparse
+
 
 
 def pdist(x, y):
+    print("MESSED THINGS UP, EXPERIMENTING")
+    keep_k = 50
+    return infd_except_bottom_k(distmat(x, y), keep_k)
+
     return distmat(x, y)
     dx = x[:, None, :] - y[None, :, :]
     return tf.reduce_sum(tf.square(dx), -1)# / (0.0001)
