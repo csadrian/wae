@@ -8,6 +8,7 @@ import improved_wae
 from datahandler import DataHandler
 import utils
 import datetime
+import fideval
 
 import neptune
 
@@ -193,6 +194,9 @@ def main():
 
         # Do something else
         improved_wae.improved_sampling(opts)
+
+    elif opts['mode'] == 'generate':
+        fideval.generate(opts)
 
     if "NEPTUNE_API_TOKEN" in os.environ:
         exp.stop()
