@@ -47,7 +47,8 @@ def generate(opts):
     pic_path = os.path.join(opts['work_dir'], 'checkpoints', 'dummy.samples%d' % (NUM_POINTS))
     np.save(pic_path, samples)
     for img_index, sample in enumerate(samples):
-        sample = cv2.cvtColor(sample, cv2.COLOR_GRAY2RGB)
+        #sample = cv2.cvtColor(sample, cv2.COLOR_GRAY2RGB)
+        sample = sample / 2 + 0.5
         print(np.shape(sample))
         print(np.min(sample), np.max(sample))
-        cv2.imwrite("results_mnist/generated/generated%03d.png" % img_index, sample * 255)
+        cv2.imwrite("results_celeba/generated%03d.png" % img_index, sample * 255)
