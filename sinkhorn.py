@@ -8,6 +8,10 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 def mat_vec_fn(x, y_i, k):
     v = tf.matmul(x, tf.expand_dims(y_i, 1))
     top_values, top_indices = tf.nn.top_k(-v[:, 0], k=k)
+
+    # top_indices = tf.range(3)
+    # top_values = v[:3, 0]
+
     print(top_values.get_shape(), top_indices.get_shape(), v.get_shape())
     top_indices = tf.expand_dims(top_indices, 1)
     return tf.sparse.expand_dims(tf.SparseTensor(tf.cast(top_indices, tf.int64), top_values, dense_shape=(x.get_shape()[0],)), 0)
@@ -22,7 +26,10 @@ def sparse_k_alpha(x, y, rows, k):
     def mat_vec_fn_closure(y_i):
         return mat_vec_fn(x, y_i, k)
     spliced = [mat_vec_fn_closure(y[:, i]) for i in range(rows)]
-    #x = tf.map_fn(mat_vec_fn_closure, tf.transpose(y))
+
+    # this would have a grad, so the grad is dropped in the concat
+    # return spliced[0]
+
     result = tf.sparse.concat(axis=0, sp_inputs=spliced)
     return result
     # result = SparseTensor(input.indices, map_fn(fn, input.values), input.dense_shape)
@@ -41,7 +48,7 @@ def trunc_test():
         sparse_summed = tf.sparse.sparse_dense_matmul(sparse, tf.ones((5, 1)))
         print(sess.run(sparse_summed))
         g = tf.gradients(sparse_summed, [y])
-        print(g)
+        print(sess.run(g))
         return
         print(sess.run(tf.sparse.to_dense(sparse, validate_indices=False)).T)
         print(sess.run(x).dot(sess.run(y)))
