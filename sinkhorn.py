@@ -5,6 +5,44 @@ import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
+def mat_vec_fn(x, y_i, k):
+    v = tf.matmul(x, tf.expand_dims(y_i, 1))
+    top_values, top_indices = tf.nn.top_k(-v[:, 0], k=k)
+    print(top_values.get_shape(), top_indices.get_shape(), v.get_shape())
+    #return [top_indices, top_values, v]
+    top_indices = tf.expand_dims(top_indices, 1)
+    return tf.SparseTensor(tf.cast(top_indices, tf.int64), top_values, dense_shape=y_i.get_shape())
+
+    #return tf.sparse.to_dense(tf.SparseTensor(tf.cast(top_indices, tf.int64), top_values, dense_shape=y_i.get_shape()), validate_indices=False)
+
+
+def sparse_k_alpha(x, y, rows, k):
+    def mat_vec_fn_closure(y_i):
+        return mat_vec_fn(x, y_i, k)
+    spliced = [mat_vec_fn_closure(y[:, i]) for i in range(rows)]
+    #x = tf.map_fn(mat_vec_fn_closure, tf.transpose(y))
+    result = tf.sparse.concat(axis=0, sp_inputs=spliced, expand_nonconcat_dim=True)
+    return result
+    # result = SparseTensor(input.indices, map_fn(fn, input.values), input.dense_shape)
+
+
+def trunc_test():
+    with tf.Session() as sess:
+        x = tf.constant(np.random.normal(size=(5, 4)).astype(np.float32))
+        y = tf.constant(np.random.normal(size=(4, 3)).astype(np.float32))
+
+        # print(sess.run(mat_vec_fn(x, y[:, 0], 2)))
+        # print("sdfasdfasfsda")
+
+        sparse = sparse_k_alpha(x, y, rows=3, k=2)
+        print(sess.run(tf.sparse.to_dense(sparse, validate_indices=False)).T)
+        print(sess.run(x).dot(sess.run(y)))
+
+
+if __name__ == "__main__":
+    trunc_test()
+
+
 def distmat(x,y):
     nx = tf.reduce_sum(tf.square(x), 1)
     ny = tf.reduce_sum(tf.square(y), 1)
