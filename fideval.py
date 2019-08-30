@@ -14,6 +14,7 @@ from datahandler import datashapes
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import cv2
 
 def generate(opts):
     MAX_GD_STEPS = 200
@@ -35,9 +36,8 @@ def generate(opts):
     for img_index in range(10):
         pics = net.sess.run(net.decoded,
             feed_dict={
-                net.sample_noise: np.random.normal(size=(100, opts['zdim'])),
+                net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
                 net.is_training: False
-
             })
 
         res_samples.append(pics)
@@ -46,4 +46,8 @@ def generate(opts):
     samples = np.vstack(samples)
     pic_path = os.path.join(opts['work_dir'], 'checkpoints', 'dummy.samples%d' % (NUM_POINTS))
     np.save(pic_path, samples)
-
+    for img_index, sample in enumerate(samples):
+        sample = cv2.cvtColor(sample, cv2.COLOR_GRAY2RGB)
+        print(np.shape(sample))
+        print(np.min(sample), np.max(sample))
+        cv2.imwrite("results_mnist/generated/generated%03d.png" % img_index, sample * 255)
