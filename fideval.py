@@ -15,6 +15,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import cv2
+import fid
+
+import glob
+from scipy.misc import imread
 
 def generate(opts):
     MAX_GD_STEPS = 200
@@ -51,4 +55,27 @@ def generate(opts):
         sample = sample / 2 + 0.5
         print(np.shape(sample))
         print(np.min(sample), np.max(sample))
-        cv2.imwrite("results_celeba/generated%03d.png" % img_index, sample * 255)
+        cv2.imwrite("results_celeba/generated/generated%03d.png" % img_index, sample * 255)
+
+
+
+# Paths
+image_path = 'results_celeba/generated' # set path to some generated images
+stats_path = 'fid_stats_celeba.npz' # training set statistics
+inception_path = fid.check_or_download_inception(None) # download inception network
+
+# load precalculated training set statistics
+f = np.load(stats_path)
+mu_real, sigma_real = f['mu'][:], f['sigma'][:]
+f.close()
+
+image_list = glob.glob(os.path.join(image_path, '*.png'))
+images = np.array([imread(str(fn)).astype(np.float32) for fn in image_list])
+
+fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    mu_gen, sigma_gen = fid.calculate_activation_statistics(images, sess)
+
+fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
+print("FID: %s" % fid_value)
