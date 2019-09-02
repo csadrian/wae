@@ -59,24 +59,23 @@ if __name__ == "__main__":
     trunc_test()
 
 
-def distmat(x,y):
+# squared pairwise euclidean distance matrix.
+# NOTE: might be negative for numerical precision reasons.
+def pdist(x,y):
     nx = tf.reduce_sum(tf.square(x), 1)
     ny = tf.reduce_sum(tf.square(y), 1)
 
-    # na as a row and nb as a column vectors
     nx = tf.reshape(nx, [-1, 1])
     ny = tf.reshape(ny, [1, -1])
 
-    # return pairwise euclidean difference matrix
-    sqrt_epsilon = 0.0000000001
-    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
-    #return tf.maximum(tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, 0.0)) -  0.001, 0.0)
+    return nx - 2*tf.matmul(x, y, False, True) + ny
+    # it used to be Wasserstein_1:
+    # return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
 
 
-def pdist(x, y):
-    return distmat(x, y)
+def pdist_more_memory_eaten_fewer_numerical_issues(x, y):
     dx = x[:, None, :] - y[None, :, :]
-    return tf.reduce_sum(tf.square(dx), -1)# / (0.0001)
+    return tf.reduce_sum(tf.square(dx), -1)
 
 
 def Sinkhorn_step_nonent(C, f):
@@ -145,8 +144,7 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 # TODO evil hardwired constant.
 # TODO correct terminology is unclear.
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
-    print("cost matrix still manually adjusted")
-    C = pdist(sources, targets) / (0.01) ** 2
+    C = pdist(sources, targets)
     OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P, f, g, C
 
