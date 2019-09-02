@@ -153,7 +153,7 @@ def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
 def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     OTxy, Pxy, fxy, gxy, Cxy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
     OTxx, Pxx, fxx, gxx, Cxx = SinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
-    OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
+    OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
     return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
 
 
