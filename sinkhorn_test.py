@@ -51,6 +51,8 @@ def grid(a, b):
 def main():
     n = 200
     d = 20
+    step_count = 300
+    resample_targets = False
     VIDEO_SIZE = 512
 
     # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
@@ -59,13 +61,6 @@ def main():
     start_np[:, 0] += start_np[:, 1]
     start_np += 2
     target_np = np.random.normal(size=(n, d)).astype(np.float32)
-
-    one_dim_test = False
-    if one_dim_test:
-        # the simplest case where convergence to a suboptimal solution can be presented
-        # is two 1d grids with different increments.
-        start_np =  (grid(n, 1) + 1.0)       + np.array([-3,  0.0])
-        target_np = (grid(n, 1) + 1.0) * 1.9 + np.array([0.0, 0.0])
 
     assert start_np.shape == target_np.shape == (n, d)
 
@@ -80,14 +75,14 @@ def main():
 
     with tf.Session() as sess:
         pos = tf.Variable(start_np.astype(np.float32))
-        target = tf.constant(target_np.astype(np.float32))
+        if resample_targets:
+            target = tf.random.normal((n, d), dtype=np.float32)
+        else:
+            target = tf.constant(target_np.astype(np.float32))
 
-        C = sinkhorn.pdist(pos, target) / (0.01) ** 2
-        P, f, g = sinkhorn.Sinkhorn(C, n=n, m=n, f=None, epsilon=0.01, niter=10)
-
-        # g = tf.matmul(P, target) * n - pos
-        # next_pos = pos + 0.1 * g
-        OT = tf.reduce_mean(P * C) * n
+        # OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
+        # adjusted with autocorrelation terms:
+        OT, P, f, g, C = sinkhorn.SinkhornDivergence(pos, target, epsilon=0.01, niter=10)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
@@ -102,13 +97,12 @@ def main():
 
         sess.run(tf.global_variables_initializer())
 
-
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
-            for indx in range(300):
-                sess.run(train_step)
-                next_pos_np = sess.run(pos)
-                # frame = sinkhorn.draw_points(next_pos_np, VIDEO_SIZE)
-                # frame = sinkhorn.draw_edges(next_pos_np[next_pos_np[:, 0].argsort()], target_np[target_np[:, 0].argsort()], VIDEO_SIZE)
+            for indx in range(step_count):
+                if resample_targets:
+                    _, next_pos_np, target_np = sess.run([train_step, pos, target])
+                else:
+                    _, next_pos_np = sess.run([train_step, pos])
 
                 if do_rematching:
                     matching = optimalMatching(next_pos_np, target_np)

@@ -96,23 +96,27 @@ def Sinkhorn_nonent(C, f=None, niter=1000):
 
 
 def Sinkhorn_step(C, f, epsilon):
-    g = epsilon * tf.reduce_logsumexp((-f-tf.transpose(C)) / epsilon, -1)
-    f = epsilon * tf.reduce_logsumexp((-g-C) / epsilon, -1)
+    g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
+    f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
     return f, g
 
 
-def Sinkhorn(C, n, m, f=None, epsilon=None, niter=10):
+# TODO that n is ad hoc, and does not work for non-rectangulars.
+def Sinkhorn(C, f=None, epsilon=None, niter=10):
     assert epsilon is not None
-    n_t = tf.shape(C)[0]
+    n = tf.shape(C)[0]
     if f is None:
-        f = tf.zeros(n_t, np.float32)
+        f = tf.zeros(n, np.float32)
     for i in range(niter):
         f, g = Sinkhorn_step(C, f, epsilon)
-    P = tf.exp((-f[:, None]-g[None, :]-C) / epsilon) / tf.cast(n, tf.float32)
-    return P, f, g
+
+    P = (-f[:, None] - g[None, :] - C) / epsilon
+    OT = tf.reduce_mean(tf.exp(P) * C)
+    return OT, P, f, g
 
 
 def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
+    raise Exception("please use Sinkhorn() instead")
     assert epsilon is not None
     a = tf.ones((n,1))/float(n)
     b = tf.ones((1,m))/float(m)
@@ -137,6 +141,22 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
     P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
     return P, f, g
 
+
+# TODO evil hardwired constant.
+# TODO correct terminology is unclear.
+def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
+    print("cost matrix still manually adjusted")
+    C = pdist(sources, targets) / (0.01) ** 2
+    OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P, f, g, C
+
+
+# SinkhornLoss corrected with autocorrelation
+def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
+    OTxy, Pxy, fxy, gxy, Cxy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
+    OTxx, Pxx, fxx, gxx, Cxx = SinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
+    OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
+    return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
 
 
 def draw_points(p, w):

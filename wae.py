@@ -168,17 +168,15 @@ class WAE(object):
         #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
 
-        n = m = opts['nat_size']
+        n = opts['nat_size']
 
         x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
 
-        C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
-
-        P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, m, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-        self.P=P
-
-        OT = tf.reduce_sum(P * C)
+        niter=opts['sinkhorn_iters']
+        OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets,
+                                               epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        self.P = P
         return OT
 
     def zxz_loss(self):
