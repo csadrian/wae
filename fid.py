@@ -64,7 +64,7 @@ def _get_inception_layer(sess):
 #-------------------------------------------------------------------------------
 
 
-def get_activations(images, sess, batch_size=50, verbose=False):
+def get_activations(images, sess, batch_size=100, verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
 
     Params:

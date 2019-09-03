@@ -174,8 +174,13 @@ class WAE(object):
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
 
         niter=opts['sinkhorn_iters']
-        OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets,
-                                               epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        #OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets,
+        #
+        #C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
+        #P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, n, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        #OT = tf.reduce_sum(P*C)
+        OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+
         self.P = P
         return OT
 
@@ -653,9 +658,9 @@ class WAE(object):
         logging.error('Real pictures sharpness = %.5f' % np.min(real_blurr))
 
 
-        #VIDEO_SIZE = 512
-        #with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
-        if True:
+        VIDEO_SIZE = 512
+        with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
+          #if True:
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
@@ -710,7 +715,7 @@ class WAE(object):
                 batch_noise = self.sample_pz(opts['batch_size'])
 
 
-                if False:
+                if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False, self.nat_targets: self.nat_targets_np})
                     print("frame,", nat_targets_np.shape)
                     frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, edges=False)

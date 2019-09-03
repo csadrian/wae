@@ -117,7 +117,7 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
 
 
 def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
-    raise Exception("please use Sinkhorn() instead")
+    #raise Exception("please use Sinkhorn() instead")
     assert epsilon is not None
     a = tf.ones((n,1))/float(n)
     b = tf.ones((1,m))/float(m)
@@ -169,6 +169,7 @@ def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     OTxx, Pxx, fxx, gxx, Cxx = SinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
     OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
     return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
+    #return OTxy, Pxy, fxy, gxy, Cxy
 
 
 def draw_points(p, w):

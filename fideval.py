@@ -27,7 +27,7 @@ def generate(opts):
     NUM_POINTS = 10000
     BATCH_SIZE = 100
 
-    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-50')
+    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-20000')
 
     net = wae.WAE(opts)
 
@@ -58,7 +58,7 @@ def generate(opts):
         cv2.imwrite("results_celeba/generated/generated%03d.png" % img_index, sample * 255)
 
 
-
+"""
 # Paths
 image_path = 'results_celeba/generated' # set path to some generated images
 stats_path = 'fid_stats_celeba.npz' # training set statistics
@@ -79,3 +79,4 @@ with tf.Session() as sess:
 
 fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
 print("FID: %s" % fid_value)
+"""
