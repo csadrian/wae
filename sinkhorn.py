@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import cv2
 import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
@@ -68,8 +69,9 @@ def pdist(x,y):
     nx = tf.reshape(nx, [-1, 1])
     ny = tf.reshape(ny, [1, -1])
 
-    return nx - 2*tf.matmul(x, y, False, True) + ny
+    return (nx - 2*tf.matmul(x, y, False, True) + ny)
     # it used to be Wasserstein_1:
+    # sqrt_epsilon = 1e-9
     # return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
 
 
@@ -100,7 +102,7 @@ def Sinkhorn_step(C, f, epsilon):
     return f, g
 
 
-# TODO that n is ad hoc, and does not work for non-rectangulars.
+# TODO that reduce_mean is some constant multiplier away from the standard value.
 def Sinkhorn(C, f=None, epsilon=None, niter=10):
     assert epsilon is not None
     n = tf.shape(C)[0]
@@ -145,6 +147,18 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 # TODO correct terminology is unclear.
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
+    OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P, f, g, C
+
+
+def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):
+    C = pdist(sources, targets)
+    sh = C.get_shape()
+    bernoulli = tfp.distributions.Bernoulli(probs=[0.9]) # prob of removal
+    mask = tf.cast(bernoulli.sample(sh), dtype=np.float32)
+    # sample() gives an extra axis for some reason.
+    mask = mask[:, :, 0]
+    C += mask * 1e9
     OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P, f, g, C
 
