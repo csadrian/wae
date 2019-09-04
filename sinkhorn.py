@@ -19,6 +19,7 @@ def mat_vec_fn(x, y_i, rows, cols, i, k, sess):
 # 1. this is matmul, rather than ||x_i - y_j||^2.
 # 2. when K_alpha, we need to get rid of the 1s as -inf is supposed to be the default.
 def sparse_k_alpha(x, y, k, rows, cols, sess):
+    y = tf.transpose(y)
 
     def mat_vec_fn_closure(y_i, i):
         return mat_vec_fn(x, y_i, rows, cols, i, k, sess)
@@ -30,33 +31,40 @@ def sparse_k_alpha(x, y, k, rows, cols, sess):
     for i in range(1, cols):
         res = tf.sparse.add(res, spliced[i])
     return res
-    # result = SparseTensor(input.indices, map_fn(fn, input.values), input.dense_shape)
 
 
 def trunc_test():
     with tf.Session() as sess:
+        def e(t):
+            return sess.run(t)
+        def p(s, t):
+            print(s, e(t))
+
         x_np = np.random.normal(size=(5, 4)).astype(np.float32)
-        y_np = np.random.normal(size=(4, 3)).astype(np.float32)
+        y_np = np.random.normal(size=(3, 4)).astype(np.float32)
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
         sess.run(tf.global_variables_initializer())
 
-        sparse = sparse_k_alpha(x, y, k=2, rows=5, cols=3, sess=sess)
+        dense = pdist(x, y)
+
+        sparse = sparse_k_alpha(x, y, k=4, rows=5, cols=3, sess=sess)
 
         print("x", x_np, "y", y_np)
-        print("np", pdist(x, tf.transpose(y)).eval(session=sess))
-        print(sess.run(tf.sparse.to_dense(sparse, validate_indices=False)).T)
+        p("dense dist", dense)
+        p("sparse dist", tf.sparse.to_dense(sparse, validate_indices=False))
 
         sparse_summed = tf.sparse.sparse_dense_matmul(sparse, tf.ones((3, 1)))
-        print(sess.run(sparse_summed))
-        g = tf.gradients(sparse_summed, [y])
-        print(sess.run(g))
+        p("sparse_summed", sparse_summed)
+        grad = tf.gradients(sparse_summed, [y])
+        p("sparse_summed grad by y", grad)
+
+        dense_summed = tf.matmul(dense, tf.ones((3, 1)))
+        p("dense_summed", dense_summed)
+        dense_grad = tf.gradients(dense_summed, [y])
+        p("dense_summed grad by y", dense_grad)
+
         return
-        print(sess.run(tf.sparse.to_dense(sparse, validate_indices=False)).T)
-        print(sess.run(x).dot(sess.run(y)))
-        print(sess.run(g))
-
-
 
 
 # squared pairwise euclidean distance matrix.
