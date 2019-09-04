@@ -6,47 +6,48 @@ import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
-def mat_vec_fn(x, y_i, k):
-    v = tf.matmul(x, tf.expand_dims(y_i, 1))
-    top_values, top_indices = tf.nn.top_k(-v[:, 0], k=k)
-
-    # top_indices = tf.range(3)
-    # top_values = v[:3, 0]
-
-    print(top_values.get_shape(), top_indices.get_shape(), v.get_shape())
+def mat_vec_fn(x, y_i, rows, cols, i, k, sess):
+    v = tf.reduce_sum(tf.square(x-y_i), axis=1)
+    top_values, top_indices = tf.nn.top_k(-v, k=k)
     top_indices = tf.expand_dims(top_indices, 1)
-    return tf.sparse.expand_dims(tf.SparseTensor(tf.cast(top_indices, tf.int64), top_values, dense_shape=(x.get_shape()[0],)), 0)
-
-    #return tf.sparse.to_dense(tf.SparseTensor(tf.cast(top_indices, tf.int64), top_values, dense_shape=y_i.get_shape()), validate_indices=False)
-
+    temp_indices = tf.zeros((k,), dtype=tf.int32) + i*tf.ones((k,), dtype=tf.int32)
+    temp_indices = tf.expand_dims(temp_indices, 1)
+    top_indices = tf.concat([top_indices, temp_indices], 1)
+    return tf.SparseTensor(tf.cast(top_indices, tf.int64), -top_values, dense_shape=(rows, cols))
 
 # TODO
 # 1. this is matmul, rather than ||x_i - y_j||^2.
 # 2. when K_alpha, we need to get rid of the 1s as -inf is supposed to be the default.
-def sparse_k_alpha(x, y, rows, k):
-    def mat_vec_fn_closure(y_i):
-        return mat_vec_fn(x, y_i, k)
-    spliced = [mat_vec_fn_closure(y[:, i]) for i in range(rows)]
+def sparse_k_alpha(x, y, k, rows, cols, sess):
 
-    # this would have a grad, so the grad is dropped in the concat
-    # return spliced[0]
+    def mat_vec_fn_closure(y_i, i):
+        return mat_vec_fn(x, y_i, rows, cols, i, k, sess)
+    spliced = [mat_vec_fn_closure(y[:, i], i) for i in range(cols)]
 
-    result = tf.sparse.concat(axis=0, sp_inputs=spliced)
-    return result
+    res = spliced[0]
+    print("res0", res.eval(session=sess))
+
+    for i in range(1, cols):
+        res = tf.sparse.add(res, spliced[i])
+    return res
     # result = SparseTensor(input.indices, map_fn(fn, input.values), input.dense_shape)
 
 
 def trunc_test():
     with tf.Session() as sess:
-        x = tf.constant(np.random.normal(size=(5, 4)).astype(np.float32))
-        y = tf.Variable(np.random.normal(size=(4, 3)).astype(np.float32))
+        x_np = np.random.normal(size=(5, 4)).astype(np.float32)
+        y_np = np.random.normal(size=(4, 3)).astype(np.float32)
+        x = tf.constant(x_np)
+        y = tf.Variable(y_np)
         sess.run(tf.global_variables_initializer())
 
-        # print(sess.run(mat_vec_fn(x, y[:, 0], 2)))
-        # print("sdfasdfasfsda")
+        sparse = sparse_k_alpha(x, y, k=2, rows=5, cols=3, sess=sess)
 
-        sparse = sparse_k_alpha(x, y, rows=3, k=2)
-        sparse_summed = tf.sparse.sparse_dense_matmul(sparse, tf.ones((5, 1)))
+        print("x", x_np, "y", y_np)
+        print("np", pdist(x, tf.transpose(y)).eval(session=sess))
+        print(sess.run(tf.sparse.to_dense(sparse, validate_indices=False)).T)
+
+        sparse_summed = tf.sparse.sparse_dense_matmul(sparse, tf.ones((3, 1)))
         print(sess.run(sparse_summed))
         g = tf.gradients(sparse_summed, [y])
         print(sess.run(g))
@@ -56,8 +57,6 @@ def trunc_test():
         print(sess.run(g))
 
 
-if __name__ == "__main__":
-    trunc_test()
 
 
 # squared pairwise euclidean distance matrix.
@@ -193,3 +192,6 @@ def draw_edges(p1, p2, w, edges=True):
     for (x1, y1) in p1:
         cv2.circle(img, (x1, y1), 3, (255, 0, 0), -1, cv2.CV_AA)
     return img
+
+if __name__ == "__main__":
+    trunc_test()
