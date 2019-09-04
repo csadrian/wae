@@ -6,7 +6,53 @@ import moviepy.editor as mvp
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 
 
-def mat_vec_fn(x, y_i, rows, cols, i, k, sess):
+# that's a weird add, because it only works for the sparse subset of
+# the matrix elements. the justification is that elsewhere the
+# default is plus or minus infinity (rather than the standard 0), and inf + finite == inf.
+def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
+    return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
+
+
+def broadcast_test():
+    with tf.Session() as sess:
+        def e(t):
+            return sess.run(t)
+        def p(s, t):
+            print(s, e(t))
+
+        n = 100000
+        np.random.seed(0)
+        sparse_values = tf.Variable(np.random.normal(size=2).astype(np.float64))
+        dense_vector_np = np.arange(n) + 1
+        dense_vector = tf.broadcast_to(tf.cast(tf.constant(dense_vector_np), np.float64), (n,))
+        s = tf.sparse.SparseTensor(indices=[[0, 0], [2, 3]], values=sparse_values, dense_shape=[n, n])
+
+        e(tf.global_variables_initializer())
+
+        p("sparse mat:", s)
+        print("dense vec:", dense_vector_np)
+
+        for axis in (0, 1):
+            print("==================")
+            print("axis =", axis)
+
+            res = sparse_matrix_dense_broadcasted_vector_add(s, dense_vector, axis=axis)
+            p("broadcasted elementwise add:", res)
+
+            s_np_trunc = np.zeros((4, 4)) ; s_np_trunc[0, 0] = e(sparse_values[0]) ; s_np_trunc[2, 3] = e(sparse_values[1])
+            dense_vector_trunc = dense_vector_np[np.newaxis, :4]
+            if axis == 0:
+                masked_add = (s_np_trunc + dense_vector_trunc) * (s_np_trunc != 0)
+            elif axis == 1:
+                masked_add = (s_np_trunc + dense_vector_trunc.T) * (s_np_trunc != 0)
+            print("numpy result truncated:", masked_add)
+
+            p("gradients", tf.gradients(tf.sparse.reduce_sum(res), sparse_values))
+
+
+# creates the sparse vector that is the smallest k squared distances
+# between x and y_i.
+def mat_vec_fn(x, y_i, rows, cols, i, k):
     v = tf.reduce_sum(tf.square(x-y_i), axis=1)
     top_values, top_indices = tf.nn.top_k(-v, k=k)
     top_indices = tf.expand_dims(top_indices, 1)
@@ -15,18 +61,23 @@ def mat_vec_fn(x, y_i, rows, cols, i, k, sess):
     top_indices = tf.concat([top_indices, temp_indices], 1)
     return tf.SparseTensor(tf.cast(top_indices, tf.int64), -top_values, dense_shape=(rows, cols))
 
-# TODO
-# 1. this is matmul, rather than ||x_i - y_j||^2.
-# 2. when K_alpha, we need to get rid of the 1s as -inf is supposed to be the default.
-def sparse_k_alpha(x, y, k, rows, cols, sess):
+
+# keeps the first k elements of each row of the pairwise squared distance matrix
+# x: (rows, d), y: (cols, d), returns (rows, cols)-dense_shaped
+# sparse matrix with k sparse elements in each column.
+#
+# for example, if x are target points and y are latent points, each y is only affected
+# by the closest k target points.
+# BEWARE: when doing arithmetics with the result, you should
+# assume that the non-instantiated elements are +inf, rather than the usual 0.
+def sparse_k_alpha(x, y, k, rows, cols):
     y = tf.transpose(y)
 
     def mat_vec_fn_closure(y_i, i):
-        return mat_vec_fn(x, y_i, rows, cols, i, k, sess)
+        return mat_vec_fn(x, y_i, rows, cols, i, k)
     spliced = [mat_vec_fn_closure(y[:, i], i) for i in range(cols)]
 
     res = spliced[0]
-    print("res0", res.eval(session=sess))
 
     for i in range(1, cols):
         res = tf.sparse.add(res, spliced[i])
@@ -48,7 +99,7 @@ def trunc_test():
 
         dense = pdist(x, y)
 
-        sparse = sparse_k_alpha(x, y, k=4, rows=5, cols=3, sess=sess)
+        sparse = sparse_k_alpha(x, y, k=4, rows=5, cols=3)
 
         print("x", x_np, "y", y_np)
         p("dense dist", dense)
@@ -203,3 +254,4 @@ def draw_edges(p1, p2, w, edges=True):
 
 if __name__ == "__main__":
     trunc_test()
+    broadcast_test()
