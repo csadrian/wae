@@ -205,7 +205,8 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
         f, g = Sinkhorn_step(C, f, epsilon)
 
     P = (-f[:, None] - g[None, :] - C) / epsilon
-    OT = tf.reduce_mean(tf.exp(P) * C)
+    P = rounding(tf.exp(P),tf.ones(n, np.float32), tf.ones(n, np.float32))
+    OT = tf.reduce_mean(P * C)
     return OT, P, f, g
 
 
@@ -290,6 +291,28 @@ def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
     #return OTxy, Pxy, fxy, gxy, Cxy
 
+
+def rounding(F, r, c):
+    row_ones = tf.ones(tf.shape(F)[0],np.float64)
+    col_ones = tf.ones(tf.shape(F)[1],np.float64)
+    r_F = tf.math.reduce_sum(F, axis=1)
+    #c_F = tf.math.reduce_sum(F, axis=0)
+    X = tf.math.minimum(r/r_F, row_ones)
+    DX = tf.diag(X)
+    F1 = tf.matmul(DX,F)
+    #r_F1 = tf.math.reduce_sum(F1, axis=1)
+    c_F1 = tf.math.reduce_sum(F1, axis=0)
+    Y = tf.math.minimum(c/c_F1, col_ones)
+    DY = tf.diag(Y)
+    F2 = tf.matmul(F1,DY)
+    r_F2 = tf.math.reduce_sum(F2, axis=1)
+    c_F2 = tf.math.reduce_sum(F2, axis=0)
+    err_r = r - r_F2
+    err_r = tf.expand_dims(err_r, 1)
+    err_c = c - c_F2
+    err_c = tf.expand_dims(err_c, 0)
+    G = F2 + (tf.matmul(err_r, err_c)/tf.norm(err_r,ord = 1))
+    return G
 
 def draw_points(p, w):
     img = np.zeros((w, w, 3), np.uint8)
