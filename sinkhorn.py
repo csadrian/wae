@@ -9,12 +9,16 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 # that's a weird add, because it only works for the sparse subset of
 # the matrix elements. the justification is that elsewhere the
 # default is plus or minus infinity (rather than the standard 0), and inf + finite == inf.
+#
+# when axis == 0, we add v to each column of s,
+# when axis == 1, we add v to each row of s.
 def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
     return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
 
 
 def sparse_elementwise_op(s, op):
     return tf.SparseTensor(s.indices, op(s.values), s.dense_shape)
+
 
 # TODO are these really not implemented?
 def minus(s):
@@ -32,9 +36,9 @@ def broadcast_test():
 
         n = 100000
         np.random.seed(0)
-        sparse_values = tf.Variable(np.random.normal(size=2).astype(np.float64))
+        sparse_values = tf.Variable(np.random.normal(size=2).astype(np.float32))
         dense_vector_np = np.arange(n) + 1
-        dense_vector = tf.broadcast_to(tf.cast(tf.constant(dense_vector_np), np.float64), (n,))
+        dense_vector = tf.broadcast_to(tf.cast(tf.constant(dense_vector_np), np.float32), (n,))
         s = tf.sparse.SparseTensor(indices=[[0, 0], [2, 3]], values=sparse_values, dense_shape=[n, n])
 
         e(tf.global_variables_initializer())
@@ -52,9 +56,9 @@ def broadcast_test():
             s_np_trunc = np.zeros((4, 4)) ; s_np_trunc[0, 0] = e(sparse_values[0]) ; s_np_trunc[2, 3] = e(sparse_values[1])
             dense_vector_trunc = dense_vector_np[np.newaxis, :4]
             if axis == 0:
-                masked_add = (s_np_trunc + dense_vector_trunc) * (s_np_trunc != 0)
-            elif axis == 1:
                 masked_add = (s_np_trunc + dense_vector_trunc.T) * (s_np_trunc != 0)
+            elif axis == 1:
+                masked_add = (s_np_trunc + dense_vector_trunc) * (s_np_trunc != 0)
             print("numpy result truncated:", masked_add)
 
             p("gradients", tf.gradients(tf.sparse.reduce_sum(res), sparse_values))
@@ -110,11 +114,11 @@ def trunc_test():
         y_np = np.random.normal(size=(3, 4)).astype(np.float32)
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
-        sess.run(tf.global_variables_initializer())
+        e(tf.global_variables_initializer())
 
         dense = pdist(x, y)
 
-        sparse = sparse_k_alpha(x, y, k=4, rows=5, cols=3)
+        sparse = SparsePdist(x, y, rows=5, cols=3, k=4)
 
         print("x", x_np, "y", y_np)
         p("dense dist", dense)
@@ -180,10 +184,14 @@ def my_sleazy_logsumexp(s, axis):
     n, m = s.get_shape().as_list()
     exped = sparse_elementwise_op(s, tf.exp)
     if axis == 0:
-        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((n, 1)))
+        # TODO seriously, no tf.sparse.dense_sparse_matmul()?
+        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(exped), tf.ones((n, 1)))
+        logged = tf.log(summed)
+        logged = tf.reshape(logged, (m, ))
     elif axis == 1 or axis == -1:
-        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((1, m)))
-    logged = tf.log(summed)
+        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((m, 1)))
+        logged = tf.log(summed)
+        logged = tf.reshape(logged, (n, ))
     return logged
 
 
@@ -224,6 +232,64 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 1)
     OT = tf.SparseTensor(P.indices, tf.exp(P.values) * C.values)
     return OT, P, f, g
+
+
+def sparse_sinkhorn_test():
+    with tf.Session() as sess:
+        def e(t):
+            return sess.run(t)
+        def p(s, t):
+            print(s, e(t))
+
+        n = 5
+        m = 3
+        d = 4
+        k = n
+        epsilon = 0.01
+
+        x_np = np.random.normal(size=(n, d)).astype(np.float32)
+        y_np = np.random.normal(size=(m, d)).astype(np.float32)
+        x = tf.constant(x_np)
+        y = tf.Variable(y_np)
+        sess.run(tf.global_variables_initializer())
+
+        dense = pdist(x, y)
+
+        C = SparsePdist(x, y, rows=n, cols=m, k=k)
+
+        e(tf.global_variables_initializer())
+
+        p("C", C)
+        p("dense", dense)
+
+        def to_sparse(dense):
+            # Find indices where the tensor is not zero
+            idx = tf.where(tf.not_equal(dense, 0))
+            # Make the sparse tensor
+            # Use tf.shape(a_t, out_type=tf.int64) instead of a_t.get_shape()
+            # if tensor shape is dynamic
+            sparse = tf.SparseTensor(idx, tf.gather_nd(dense, idx), tf.shape(dense, out_type=tf.int64))
+            return sparse
+
+        p("dense-sparse-dense", tf.sparse.to_dense(to_sparse(dense)))
+
+        p("lse C axis=0", my_sleazy_logsumexp(C, axis=0))
+        p("lse C axis=1", my_sleazy_logsumexp(C, axis=1))
+
+        p("lse dense axis=0", tf.reduce_logsumexp(dense, axis=0))
+        p("lse dense axis=1", tf.reduce_logsumexp(dense, axis=1))
+
+        return
+
+        f = tf.zeros(n, np.float32)
+        translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=0) # TODO or is it axis=0?
+        p("translated", translated)
+        g = epsilon * my_sleazy_logsumexp(scalar_mul(translated, 1.0/epsilon), axis=0)
+        p("g", g)
+        translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=1) # TODO or is it axis=1?
+        p("translated2", translated2)
+        f2 = epsilon * my_sleazy_logsumexp(scalar_mul(translated2, 1.0 / epsilon), axis=1)
+        p("f2", f2)
 
 
 def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
@@ -337,5 +403,6 @@ def draw_edges(p1, p2, w, edges=True):
     return img
 
 if __name__ == "__main__":
+    sparse_sinkhorn_test() ; exit()
     trunc_test()
     broadcast_test()
