@@ -13,6 +13,16 @@ def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
     return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
 
 
+def sparse_elementwise_op(s, op):
+    return tf.SparseTensor(s.indices, op(s.values), s.dense_shape)
+
+# TODO are these really not implemented?
+def minus(s):
+    return tf.SparseTensor(s.indices, -s.values, s.dense_shape)
+def scalar_mul(s, f):
+    return tf.SparseTensor(s.indices, f * s.values, s.dense_shape)
+
+
 def broadcast_test():
     with tf.Session() as sess:
         def e(t):
@@ -70,7 +80,12 @@ def mat_vec_fn(x, y_i, rows, cols, i, k):
 # by the closest k target points.
 # BEWARE: when doing arithmetics with the result, you should
 # assume that the non-instantiated elements are +inf, rather than the usual 0.
-def sparse_k_alpha(x, y, k, rows, cols):
+#
+# TODO remove rows and cols args, they are redundant afaik. cols must be a python int, though.
+# TODO unlike this, the rest of the code operates under the assumption that targets are the second arg.
+#      this is a big issue because of the asymmetry that we want k friends for every latent
+#      rather than k friends for every target.
+def SparsePdist(x, y, rows, cols, k):
     y = tf.transpose(y)
 
     def mat_vec_fn_closure(y_i, i):
@@ -120,7 +135,7 @@ def trunc_test():
 
 # squared pairwise euclidean distance matrix.
 # NOTE: might be negative for numerical precision reasons.
-def pdist(x,y):
+def pdist(x, y):
     nx = tf.reduce_sum(tf.square(x), 1)
     ny = tf.reduce_sum(tf.square(y), 1)
 
@@ -160,6 +175,26 @@ def Sinkhorn_step(C, f, epsilon):
     return f, g
 
 
+# TODO numerical stability went out of the window.
+def my_sleazy_logsumexp(s, axis):
+    n, m = s.get_shape().as_list()
+    exped = sparse_elementwise_op(s, tf.exp)
+    if axis == 0:
+        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((n, 1)))
+    elif axis == 1 or axis == -1:
+        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((1, m)))
+    logged = tf.log(summed)
+    return logged
+
+
+def SparseSinkhorn_step(C, f, epsilon):
+    translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=1) # TODO or is it axis=0?
+    g = epsilon * my_sleazy_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
+    translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
+    f = epsilon * my_sleazy_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
+    return f, g
+
+
 # TODO that reduce_mean is some constant multiplier away from the standard value.
 def Sinkhorn(C, f=None, epsilon=None, niter=10):
     assert epsilon is not None
@@ -171,6 +206,22 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
 
     P = (-f[:, None] - g[None, :] - C) / epsilon
     OT = tf.reduce_mean(tf.exp(P) * C)
+    return OT, P, f, g
+
+
+def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
+    assert epsilon is not None
+    n, m = C.get_shape().as_list()
+    if f is None:
+        f = tf.zeros(n, np.float32)
+    for i in range(niter):
+        f, g = SparseSinkhorn_step(C, f, epsilon)
+
+    # happy times when it looked this simple:
+    # P = (-f[:, None] - g[None, :] - C) / epsilon
+    P = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, 0) # TODO or is it the other way round?
+    P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 1)
+    OT = tf.SparseTensor(P.indices, tf.exp(P.values) * C.values)
     return OT, P, f, g
 
 
@@ -206,6 +257,16 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
     OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P, f, g, C
+
+
+def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
+    # rows = tf.shape(sources)[0]
+    # cols = tf.shape(targets)[0]
+    rows = sources.get_shape().as_list()[0]
+    cols = targets.get_shape().as_list()[0]
+    C = SparsePdist(sources, targets, rows, cols, k=k)
+    OT, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P, f, g, C
 
 
