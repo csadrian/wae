@@ -411,42 +411,46 @@ def rounding(F, r, c):
     c_F1 = tf.math.reduce_sum(F1, axis=0)
     Y = tf.math.minimum(c/c_F1, col_ones)
     DY = tf.diag(Y)
-    F2 = tf.matmul(F1,DY)
+    F2 = tf.matmul(F1, DY)
     r_F2 = tf.math.reduce_sum(F2, axis=1)
     c_F2 = tf.math.reduce_sum(F2, axis=0)
     err_r = r - r_F2
     err_r = tf.expand_dims(err_r, 1)
     err_c = c - c_F2
     err_c = tf.expand_dims(err_c, 0)
-    G = F2 + (tf.matmul(err_r, err_c)/tf.norm(err_r,ord = 1))
+    err_matrix = tf.matmul(err_r, err_c) / tf.norm(err_r, ord=1)
+    G = F2 + err_matrix
     return G
 
-<<<<<<< HEAD
-=======
+
 def rounding_log(F, r, c):
     row_zeros = tf.zeros(tf.shape(F)[0],tf.float32)
     col_zeros = tf.zeros(tf.shape(F)[1],tf.float32)
     r_F = tf.math.reduce_logsumexp(F, axis=1)
     #c_F = tf.math.reduce_sum(F, axis=0)
     X = tf.math.minimum(r-r_F, row_zeros)
-    X = tf.transpose(tf.broadcast_to(X, [tf.shape(F)[0], tf.shape(F)[1]]))
+    X = tf.transpose(tf.broadcast_to(X, [tf.shape(F)[1], tf.shape(F)[0]]))
     F1 = X + F
     #r_F1 = tf.math.reduce_sum(F1, axis=1)
     c_F1 = tf.math.reduce_logsumexp(F1, axis=0)
     Y = tf.math.minimum(c-c_F1, col_zeros)
-    Y = tf.broadcast_to(X, [tf.shape(F)[0], tf.shape(F)[1]])
+    Y = tf.broadcast_to(Y, [tf.shape(F)[0], tf.shape(F)[1]])
     F2 = Y + F1
     r_F2 = tf.math.reduce_logsumexp(F2, axis=1)
     c_F2 = tf.math.reduce_logsumexp(F2, axis=0)
-    err_r = tf.math.log(tf.exp(r) / tf.exp(r_F2))
-    err_r = tf.transpose(tf.broadcast_to(err_r, (err_r, [tf.shape(F)[1], tf.shape(F)[0]])))
-    err_c = tf.math.log(tf.exp(c) / tf.exp(c_F2))
-    err_c = tf.broadcast_to(err_r, (err_r, [tf.shape(F)[0], tf.shape(F)[1]]))
-    err_matrix = err_r + err_c - tf.log(tf.norm(tf.exp(err_r),ord = 1))
+    err_r = tf.math.log(tf.math.maximum(tf.exp(r) - tf.exp(r_F2), 0.0))
+
+    # TODO expand_dims
+    err_r_broadcasted = tf.transpose(tf.broadcast_to(err_r, (tf.shape(F)[1], tf.shape(F)[0])))
+
+    err_c = tf.math.log(tf.math.maximum(tf.exp(c) - tf.exp(c_F2), 0.0))
+
+    # TODO expand_dims
+    err_c = tf.broadcast_to(err_c, (tf.shape(F)[0], tf.shape(F)[1]))
+    err_matrix = err_r_broadcasted + err_c - tf.log(tf.norm(tf.exp(err_r), ord=1))
     G = tf.math.log(tf.exp(F2) + tf.exp(err_matrix))
     return G
 
->>>>>>> rounding_log first version
 
 def draw_points(p, w):
     img = np.zeros((w, w, 3), np.uint8)
