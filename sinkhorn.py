@@ -201,16 +201,21 @@ def sparse_reduce_min(s, axis):
 
 def sparse_logsumexp(s, axis):
     def lse(s):
-        return tf.log(sparse_reduce_sum(sparse_exp(s), axis))
+        return tf.reshape(tf.log(sparse_reduce_sum(sparse_exp(s), axis)), [-1])
 
-    # stupid function has no gradient
-    mx = tf.sparse.reduce_max(s, axis)
-    # mx = tf.reshape(tf.sparse.to_dense(tf.sparse.softmax(s, axis), validate_indices=False), [-1])
+    # stupid function has no gradient:
+    # mx = tf.sparse.reduce_max(s, axis)
+
+    # attempt with mean but it did not help:
+    # mx = tf.sparse.reduce_sum(s, axis) / tf.cast(s.dense_shape[axis], tf.float32)
 
     if axis == 0:
         other_axis = 1
     elif axis == 1 or axis == -1:
         other_axis = 0
+
+    mx = 0.0 * tf.ones(s.dense_shape[other_axis], dtype=tf.float32)
+
     return lse(sparse_matrix_dense_broadcasted_vector_add(s, -mx, other_axis)) + mx
 
 
@@ -228,6 +233,16 @@ def my_sleazy_logsumexp(s, axis):
         logged = tf.log(summed)
         logged = tf.reshape(logged, (n, ))
     return logged
+
+
+def to_sparse(dense):
+    # Find indices where the tensor is not zero
+    idx = tf.where(tf.not_equal(dense, 0))
+    # Make the sparse tensor
+    # Use tf.shape(a_t, out_type=tf.int64) instead of a_t.get_shape()
+    # if tensor shape is dynamic
+    sparse = tf.SparseTensor(idx, tf.gather_nd(dense, idx), tf.shape(dense, out_type=tf.int64))
+    return sparse
 
 
 def SparseSinkhorn_step(C, f, epsilon):
@@ -248,7 +263,7 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
         f, g = Sinkhorn_step(C, f, epsilon)
 
     P = (-f[:, None] - g[None, :] - C) / epsilon
-    P = rounding_log(P,tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
+    # P = rounding_log(P, tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
     OT = tf.reduce_mean(tf.exp(P) * C)
     return OT, P, f, g
 
@@ -282,9 +297,9 @@ def sparse_sinkhorn_test():
         k = n
         epsilon = 0.01
 
-        np.random.seed(1)
-        x_np = np.random.normal(size=(n, d)).astype(np.float32)
-        y_np = np.random.normal(size=(m, d)).astype(np.float32)
+        np.random.seed(3)
+        x_np = np.random.normal(size=(n, d)).astype(np.float32) / 10
+        y_np = np.random.normal(size=(m, d)).astype(np.float32) / 10
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
         sess.run(tf.global_variables_initializer())
@@ -297,15 +312,6 @@ def sparse_sinkhorn_test():
 
         p("C", C)
         p("dense", dense)
-
-        def to_sparse(dense):
-            # Find indices where the tensor is not zero
-            idx = tf.where(tf.not_equal(dense, 0))
-            # Make the sparse tensor
-            # Use tf.shape(a_t, out_type=tf.int64) instead of a_t.get_shape()
-            # if tensor shape is dynamic
-            sparse = tf.SparseTensor(idx, tf.gather_nd(dense, idx), tf.shape(dense, out_type=tf.int64))
-            return sparse
 
         p("dense-sparse-dense", tf.sparse.to_dense(to_sparse(dense)))
 
