@@ -366,12 +366,16 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
     return P, f, g
 
 
-# TODO evil hardwired constant.
-# TODO correct terminology is unclear.
-def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
+# interaction_graph tries to emulate sparsity until we have real working sparsity.
+# TODO that tf.where is probably not a proper way to do this.
+def SinkhornLoss(sources, targets, epsilon=0.01, niter=10, interaction_graph=None):
     C = pdist(sources, targets)
-    OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P, f, g, C
+    if interaction_graph is None:
+        C_masked = C
+    else:
+        C_masked = tf.where(interaction_graph, C, 1e4 * tf.ones_like(C))
+    OT, P, f, g = Sinkhorn(C_masked, f=None, epsilon=epsilon, niter=niter)
+    return OT, P, f, g, C # C non-masked
 
 
 def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):

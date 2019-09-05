@@ -48,11 +48,23 @@ def grid(a, b):
     return XX.astype(np.float32)
 
 
+def maskify(C, k):
+    random_mask = np.random.binomial(1, 0.1, C.shape).astype(np.bool)
+    argsorted0 = np.argsort(C, axis=0)
+    argsorted1 = np.argsort(C, axis=1)
+    # a pair is chosen if either of them is in the nearest k neigborhood of the other.
+    # TODO that has two issues: hard to calculate in batches, and does not seem to
+    # work well in practice, so something smarter might be needed.
+    masked = np.logical_or(random_mask, np.logical_or(argsorted0 < k, argsorted1 < k))
+    return masked
+
+
 def main():
-    n = 100
+    n = 200
     d = 64
     step_count = 300
     resample_targets = False
+    top_k = 20
     VIDEO_SIZE = 512
 
     # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
@@ -80,9 +92,11 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
+        interaction_graph = tf.Variable(np.ones((n, n), dtype=np.bool))
+
         # OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=10, k=10)
 
-        OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
+        OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10, interaction_graph=interaction_graph)
         # randomly throwing away elements of C, no importance sampling:
         # OT, P, f, g, C = sinkhorn.EmulatedSparseSinkhornLoss(pos, target, epsilon=0.01, niter=10)
         # adjusted with autocorrelation terms:
@@ -103,6 +117,9 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
+                C_np = sess.run(C)
+                interaction_graph_np = maskify(C_np, top_k)
+                sess.run(tf.assign(interaction_graph, interaction_graph_np))
                 if resample_targets:
                     _, next_pos_np, target_np = sess.run([train_step, pos, target])
                 else:
@@ -119,7 +136,8 @@ def main():
                 video.write_frame(frame)
 
                 print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",
-                    np.mean(np.linalg.norm(next_pos_np - target_np_aligned, axis=1)))
+                    np.mean(np.linalg.norm(next_pos_np - target_np_aligned, axis=1)),
+                    "interaction_sparsity:", float(interaction_graph_np.sum()) / interaction_graph_np.size)
                 print(np.mean(next_pos_np[:, :4], axis=0), "\n", np.cov(next_pos_np[:, :4].T))
 
 main()
