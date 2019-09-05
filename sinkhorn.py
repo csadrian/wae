@@ -248,8 +248,8 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
         f, g = Sinkhorn_step(C, f, epsilon)
 
     P = (-f[:, None] - g[None, :] - C) / epsilon
-    P = rounding(tf.exp(P),tf.ones(n, np.float32), tf.ones(n, np.float32))
-    OT = tf.reduce_mean(P * C)
+    P = rounding_log(P,tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
+    OT = tf.reduce_mean(tf.exp(P) * C)
     return OT, P, f, g
 
 
@@ -400,8 +400,8 @@ def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
 
 
 def rounding(F, r, c):
-    row_ones = tf.ones(tf.shape(F)[0],np.float64)
-    col_ones = tf.ones(tf.shape(F)[1],np.float64)
+    row_ones = tf.ones(tf.shape(F)[0],tf.float32)
+    col_ones = tf.ones(tf.shape(F)[1],tf.float32)
     r_F = tf.math.reduce_sum(F, axis=1)
     #c_F = tf.math.reduce_sum(F, axis=0)
     X = tf.math.minimum(r/r_F, row_ones)
@@ -421,6 +421,32 @@ def rounding(F, r, c):
     G = F2 + (tf.matmul(err_r, err_c)/tf.norm(err_r,ord = 1))
     return G
 
+<<<<<<< HEAD
+=======
+def rounding_log(F, r, c):
+    row_zeros = tf.zeros(tf.shape(F)[0],tf.float32)
+    col_zeros = tf.zeros(tf.shape(F)[1],tf.float32)
+    r_F = tf.math.reduce_logsumexp(F, axis=1)
+    #c_F = tf.math.reduce_sum(F, axis=0)
+    X = tf.math.minimum(r-r_F, row_zeros)
+    X = tf.transpose(tf.broadcast_to(X, [tf.shape(F)[0], tf.shape(F)[1]]))
+    F1 = X + F
+    #r_F1 = tf.math.reduce_sum(F1, axis=1)
+    c_F1 = tf.math.reduce_logsumexp(F1, axis=0)
+    Y = tf.math.minimum(c-c_F1, col_zeros)
+    Y = tf.broadcast_to(X, [tf.shape(F)[0], tf.shape(F)[1]])
+    F2 = Y + F1
+    r_F2 = tf.math.reduce_logsumexp(F2, axis=1)
+    c_F2 = tf.math.reduce_logsumexp(F2, axis=0)
+    err_r = tf.math.log(tf.exp(r) / tf.exp(r_F2))
+    err_r = tf.transpose(tf.broadcast_to(err_r, (err_r, [tf.shape(F)[1], tf.shape(F)[0]])))
+    err_c = tf.math.log(tf.exp(c) / tf.exp(c_F2))
+    err_c = tf.broadcast_to(err_r, (err_r, [tf.shape(F)[0], tf.shape(F)[1]]))
+    err_matrix = err_r + err_c - tf.log(tf.norm(tf.exp(err_r),ord = 1))
+    G = tf.math.log(tf.exp(F2) + tf.exp(err_matrix))
+    return G
+
+>>>>>>> rounding_log first version
 
 def draw_points(p, w):
     img = np.zeros((w, w, 3), np.uint8)
