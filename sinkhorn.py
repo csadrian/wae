@@ -179,6 +179,41 @@ def Sinkhorn_step(C, f, epsilon):
     return f, g
 
 
+def sparse_reduce_sum(s, axis):
+    n, m = s.get_shape().as_list()
+    if axis == 0:
+        # TODO seriously, no tf.sparse.dense_sparse_matmul()?
+        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(s), tf.ones((n, 1)))
+    elif axis == 1 or axis == -1:
+        summed = tf.sparse.sparse_dense_matmul(s, tf.ones((m, 1)))
+    else:
+        raise Exception("unimplemented")
+    return summed
+
+
+def sparse_exp(s):
+    return sparse_elementwise_op(s, lambda e: tf.exp(e))
+
+
+def sparse_reduce_min(s, axis):
+    return - tf.sparse.reduce_max(minus(s), axis)
+
+
+def sparse_logsumexp(s, axis):
+    def lse(s):
+        return tf.log(sparse_reduce_sum(sparse_exp(s), axis))
+
+    # stupid function has no gradient
+    mx = tf.sparse.reduce_max(s, axis)
+    # mx = tf.reshape(tf.sparse.to_dense(tf.sparse.softmax(s, axis), validate_indices=False), [-1])
+
+    if axis == 0:
+        other_axis = 1
+    elif axis == 1 or axis == -1:
+        other_axis = 0
+    return lse(sparse_matrix_dense_broadcasted_vector_add(s, -mx, other_axis)) + mx
+
+
 # TODO numerical stability went out of the window.
 def my_sleazy_logsumexp(s, axis):
     n, m = s.get_shape().as_list()
@@ -197,9 +232,9 @@ def my_sleazy_logsumexp(s, axis):
 
 def SparseSinkhorn_step(C, f, epsilon):
     translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=1) # TODO or is it axis=0?
-    g = epsilon * my_sleazy_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
+    g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
     translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
-    f = epsilon * my_sleazy_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
+    f = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
     return f, g
 
 
@@ -230,7 +265,7 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     # P = (-f[:, None] - g[None, :] - C) / epsilon
     P = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, 0) # TODO or is it the other way round?
     P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 1)
-    OT = tf.SparseTensor(P.indices, tf.exp(P.values) * C.values)
+    OT = tf.reduce_sum(tf.exp(P.values) * C.values)
     return OT, P, f, g
 
 
@@ -247,6 +282,7 @@ def sparse_sinkhorn_test():
         k = n
         epsilon = 0.01
 
+        np.random.seed(1)
         x_np = np.random.normal(size=(n, d)).astype(np.float32)
         y_np = np.random.normal(size=(m, d)).astype(np.float32)
         x = tf.constant(x_np)
@@ -273,22 +309,27 @@ def sparse_sinkhorn_test():
 
         p("dense-sparse-dense", tf.sparse.to_dense(to_sparse(dense)))
 
-        p("lse C axis=0", my_sleazy_logsumexp(C, axis=0))
-        p("lse C axis=1", my_sleazy_logsumexp(C, axis=1))
+        p("lse -C axis=0", sparse_logsumexp(minus(C), axis=0))
+        p("lse -C axis=1", sparse_logsumexp(minus(C), axis=1))
 
-        p("lse dense axis=0", tf.reduce_logsumexp(dense, axis=0))
-        p("lse dense axis=1", tf.reduce_logsumexp(dense, axis=1))
-
-        return
+        p("lse -dense axis=0", tf.reduce_logsumexp(-dense, axis=0))
+        p("lse -dense axis=1", tf.reduce_logsumexp(-dense, axis=1))
 
         f = tf.zeros(n, np.float32)
         translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=0) # TODO or is it axis=0?
         p("translated", translated)
-        g = epsilon * my_sleazy_logsumexp(scalar_mul(translated, 1.0/epsilon), axis=0)
+        multiplied = scalar_mul(translated, 1.0/epsilon)
+        p("multiplied", multiplied)
+        p("sparse_logsumexp(multiplied, axis=0)", sparse_logsumexp(multiplied, axis=0))
+        p("tf.logsumexp(tf.sparse.to_dense(multiplied), axis=0)",
+            tf.reduce_logsumexp(tf.sparse.to_dense(multiplied, validate_indices=False), axis=0)
+        )
+        return
+        g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), axis=0)
         p("g", g)
         translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=1) # TODO or is it axis=1?
         p("translated2", translated2)
-        f2 = epsilon * my_sleazy_logsumexp(scalar_mul(translated2, 1.0 / epsilon), axis=1)
+        f2 = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), axis=1)
         p("f2", f2)
 
 
@@ -379,6 +420,7 @@ def rounding(F, r, c):
     err_c = tf.expand_dims(err_c, 0)
     G = F2 + (tf.matmul(err_r, err_c)/tf.norm(err_r,ord = 1))
     return G
+
 
 def draw_points(p, w):
     img = np.zeros((w, w, 3), np.uint8)

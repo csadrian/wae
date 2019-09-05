@@ -49,7 +49,7 @@ def grid(a, b):
 
 
 def main():
-    n = 1000
+    n = 100
     d = 64
     step_count = 300
     resample_targets = False
