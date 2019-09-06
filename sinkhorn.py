@@ -322,7 +322,6 @@ def sparse_full_sinkhorn_test():
         y = tf.Variable(y_np)
 
         C_sparse = SparsePdist(x, y, rows=n, cols=m, k=k)
-
         C_dense = to_dense(C_sparse)
         C_dense = tf.where(tf.equal(C_dense, 0.0), np.inf * tf.ones_like(C_dense), C_dense)
 
@@ -481,7 +480,7 @@ def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P_temp, P, f, g, C
 
-
+"""
 def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
     # rows = tf.shape(sources)[0]
     # cols = tf.shape(targets)[0]
@@ -490,6 +489,21 @@ def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
     C = SparsePdist(sources, targets, rows, cols, k=k)
     OT, P_temp, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P_temp, P, f, g, C
+"""
+
+def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10):
+
+    sparse_xs = tf.gather(sources, sparse_indices[:, 0], validate_indices=False)
+    sparse_ys = tf.gather(targets, sparse_indices[:, 1], validate_indices=False)
+    sparse_dists = tf.reshape(tf.reduce_sum(tf.square(sparse_xs-sparse_ys), -1), (-1, ))
+    sparse_dist_matrix = tf.SparseTensor(sparse_indices, sparse_dists, (sources.get_shape().as_list()[0], targets.get_shape().as_list()[0]))
+    C = sparse_dist_matrix
+     
+    #rows = sources.get_shape().as_list()[0]
+    #cols = targets.get_shape().as_list()[0]
+    #C = SparsePdist(sources, targets, rows, cols, k=k)
+    OT, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P, f, g, C
 
 
 def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):
@@ -505,12 +519,22 @@ def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):
 
 
 # SinkhornLoss corrected with autocorrelation
-def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
+def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10, sparse_indices=None):
     OTxy, Pxy, fxy, gxy, Cxy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
     OTxx, Pxx, fxx, gxx, Cxx = SinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
     OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
     return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
     #return OTxy, Pxy, fxy, gxy, Cxy
+
+
+# SinkhornLoss corrected with autocorrelation
+def SparseSinkhornDivergence(sources, targets, epsilon=0.01, niter=10, sparse_indices=None):
+    OTxy, Pxy, fxy, gxy, Cxy = SparseSinkhornLoss(sources, targets, epsilon=epsilon, niter=niter, sparse_indices=sparse_indices)
+    #OTxx, Pxx, fxx, gxx, Cxx = SparseSinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
+    #OTyy, Pyy, fyy, gyy, Cyy = SparseSinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
+    #return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
+    #return OTxy, Pxy, fxy, gxy, Cxy
+    return OTxy, Pxy, fxy, gxy, Cxy
 
 
 def rounding(F, r, c):

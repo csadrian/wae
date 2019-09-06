@@ -126,7 +126,8 @@ class WAE(object):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
         self.nat_targets = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim'])), dtype=tf.float32, trainable=False)
-        self.batch_indices_mod = tf.placeholder(tf.int32, shape=(opts['batch_size'],))
+        self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
+        self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(opts['nat_sparse_indices_num'], 2))
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
@@ -173,6 +174,7 @@ class WAE(object):
 
         x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
+        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
 
         niter=opts['sinkhorn_iters']
         #OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets,
@@ -180,9 +182,12 @@ class WAE(object):
         #C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
         #P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, n, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         #OT = tf.reduce_sum(P*C)
-        OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-
+        if True:
+            OT, P, f, g, C = sinkhorn.SparseSinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'], sparse_indices=self.nat_sparse_indices)
+        else:
+            OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'], sparse_indices=self.nat_sparse_indices)
         self.P = P
+        self.C = C
         return OT
 
     def zxz_loss(self):
@@ -611,6 +616,12 @@ class WAE(object):
                 self.nat_pos = 0
         return latents
 
+    def sparse_indices_topk(self, n, m, k=100):
+        rnd_x = np.random.choice(n, size=(k,1), replace=True)
+        rnd_y = np.random.choice(m, size=(k,1), replace=True)
+        indices = np.concatenate([rnd_x, rnd_y], axis=1)
+        return indices
+        #return np.array([[0,1], [1,2]] )
 
     def train(self, data):
         opts = self.opts
@@ -725,6 +736,7 @@ class WAE(object):
                     video.write_frame(frame)
                     print("frame")
 
+                self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
                 """                
                 if epoch < 1:
                     rec_lambda = 0.0
@@ -741,6 +753,7 @@ class WAE(object):
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
                     self.nat_targets: self.nat_targets_np,
+                    self.nat_sparse_indices: self.nat_sparse_indices_np,
                     self.batch_indices_mod: data_ids_mod}
                 print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
 
@@ -1169,8 +1182,8 @@ def save_plots(opts, sample_train, sample_test,
     summary_plot = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
 
     plt.clf()
-    plt.imshow(P_np, cmap='hot', interpolation='nearest')
-    plt.savefig(os.path.join(opts["work_dir"],filename+".P.png"))
+    #plt.imshow(P_np, cmap='hot', interpolation='nearest')
+    #plt.savefig(os.path.join(opts["work_dir"],filename+".P.png"))
 
     buffer = io.StringIO()
     canvas = plt.get_current_fig_manager().canvas

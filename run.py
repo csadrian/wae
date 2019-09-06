@@ -68,6 +68,7 @@ parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help=
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
 parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
 parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
+parser.add_argument('--nat_sparse_indices_num', dest='nat_sparse_indices_num', type=int, default=1000, help='Number of sparse indices')
 
 FLAGS = parser.parse_args()
 
@@ -134,6 +135,8 @@ def main():
     else:
         opts['nat_size'] = FLAGS.train_size
     opts['nat_resampling'] = FLAGS.nat_resampling
+    if FLAGS.nat_sparse_indices_num is not None:
+        opts['nat_sparse_indices_num'] = FLAGS.nat_sparse_indices_num
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
