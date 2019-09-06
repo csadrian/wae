@@ -13,7 +13,13 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 # when axis == 0, we add v to each column of s,
 # when axis == 1, we add v to each row of s.
 def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
-    return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
+    if axis == 0:
+        # return tf.SparseTensor(s.indices, tf.gather_nd(tf.reshape(v, [1, -1]), tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
+        s = tf.sparse.transpose(s)
+        reduced = tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
+        return tf.sparse.transpose(reduced)
+    elif axis == 1 or axis == -1:
+        return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
 
 
 def sparse_elementwise_op(s, op):
@@ -180,12 +186,11 @@ def Sinkhorn_step(C, f, epsilon):
 
 
 def sparse_reduce_sum(s, axis):
-    n, m = s.get_shape().as_list()
     if axis == 0:
         # TODO seriously, no tf.sparse.dense_sparse_matmul()?
-        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(s), tf.ones((n, 1)))
+        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(s), tf.ones((tf.shape(s)[0], 1)))
     elif axis == 1 or axis == -1:
-        summed = tf.sparse.sparse_dense_matmul(s, tf.ones((m, 1)))
+        summed = tf.sparse.sparse_dense_matmul(s, tf.ones((tf.shape(s)[1], 1)))
     else:
         raise Exception("unimplemented")
     return summed
@@ -311,7 +316,37 @@ def sparse_sinkhorn_test():
         e(tf.global_variables_initializer())
 
         p("C", C)
-        p("dense", dense)
+        p("dense C", dense)
+
+        f0 = tf.zeros(n, np.float32)
+        g0 = tf.zeros(m, np.float32)
+
+        translated0 = sparse_matrix_dense_broadcasted_vector_add(C, -g0, axis=0)
+        translated1 = sparse_matrix_dense_broadcasted_vector_add(C, -f0, axis=1)
+
+        p("translated1", translated1)
+        p("translated1 to_dense", tf.sparse.to_dense(translated1, validate_indices=False))
+        p("translated0", translated0)
+        p("translated0 to_dense", tf.sparse.to_dense(translated0, validate_indices=False))
+
+
+        g = epsilon * tf.reduce_logsumexp((-f0 - tf.transpose(dense)) / epsilon, -1)
+        f = epsilon * tf.reduce_logsumexp((-g - dense) / epsilon, -1)
+        p("g dense", g)
+        p("translated2 dense", (-g - dense))
+        p("f dense", f)
+
+        translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f0, axis=1) # TODO or is it axis=0?
+        g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
+        translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
+        f = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
+        p("g sparse", g)
+        p("translated2 sparse", translated2)
+        p("translated2 sparse_to_dense", tf.sparse.to_dense(translated2, validate_indices=False))
+        p("f sparse", f)
+        return
+
+
 
         p("dense-sparse-dense", tf.sparse.to_dense(to_sparse(dense)))
 
