@@ -16,9 +16,11 @@ def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
     if axis == 0:
         # return tf.SparseTensor(s.indices, tf.gather_nd(tf.reshape(v, [1, -1]), tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
         s = tf.sparse.transpose(s)
+        s = tf.sparse.reorder(s)
         reduced = tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
         return tf.sparse.transpose(reduced)
     elif axis == 1 or axis == -1:
+        s = tf.sparse.reorder(s)
         return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
 
 
@@ -250,10 +252,15 @@ def to_sparse(dense):
     return sparse
 
 
+# for reference:
+# def Sinkhorn_step(C, f, epsilon):
+#   g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
+#   f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
+#   return f, g
 def SparseSinkhorn_step(C, f, epsilon):
-    translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=1) # TODO or is it axis=0?
+    translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=1)
     g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
-    translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
+    translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0)
     f = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
     return f, g
 
@@ -289,6 +296,48 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     return OT, P, f, g
 
 
+def sparse_full_sinkhorn_test():
+    with tf.Session() as sess:
+        def e(t):
+            return sess.run(t)
+        def p(s, t):
+            print(s, e(t))
+
+        n = 5
+        m = 3
+        d = 4
+        k = n - 1
+        epsilon = 0.01
+        niter = 10
+
+        np.random.seed(4)
+        x_np = np.random.normal(size=(n, d)).astype(np.float32) / 10
+        y_np = np.random.normal(size=(m, d)).astype(np.float32) / 10
+        x = tf.constant(x_np)
+        y = tf.Variable(y_np)
+
+        C_sparse = SparsePdist(x, y, rows=n, cols=m, k=k)
+
+        C_dense = tf.sparse.to_dense(C_sparse, validate_indices=False)
+        C_dense = tf.where(tf.equal(C_dense, 0.0), np.inf * tf.ones_like(C_dense), C_dense)
+
+        e(tf.global_variables_initializer())
+
+        p("C_sparse", C_sparse)
+        p("C_dense", C_dense)
+
+        f_sparse = tf.linspace(0.1, 0.2, n)
+        f_dense = f_sparse
+        for i in range(niter):
+            f_sparse, g_sparse = SparseSinkhorn_step(C_sparse, f_sparse, epsilon)
+            f_dense, g_dense = Sinkhorn_step(C_dense, f_dense, epsilon)
+            print(i)
+            p("f_sparse", f_sparse)
+            p("f_dense", f_dense)
+            p("g_sparse", g_sparse)
+            p("g_dense", g_dense)
+
+
 def sparse_sinkhorn_test():
     with tf.Session() as sess:
         def e(t):
@@ -307,43 +356,64 @@ def sparse_sinkhorn_test():
         y_np = np.random.normal(size=(m, d)).astype(np.float32) / 10
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
-        sess.run(tf.global_variables_initializer())
 
-        C = SparsePdist(x, y, rows=n, cols=m, k=k)
-
-        # dense = pdist(x, y)
-        dense = tf.sparse.to_dense(C, validate_indices=False)
-        dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
+        if False:
+            # some random sparse
+            dense = tf.constant(np.random.binomial(1, 0.5, size=(n, m)) * np.random.normal(size=(n, m)), dtype=tf.float32)
+            dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
+            C = to_sparse(dense)
+        elif True:
+            # a zero matrix but sparsely represented
+            dense = tf.constant(np.random.binomial(1, 0.5, size=(n, m)), dtype=tf.float32)
+            C = to_sparse(dense)
+            C = scalar_mul(C, 0.0)
+            dense = tf.zeros_like(dense)
+        else:
+            C = SparsePdist(x, y, rows=n, cols=m, k=k)
+            dense = tf.sparse.to_dense(C, validate_indices=False)
+            dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
 
         e(tf.global_variables_initializer())
 
-        p("C", C)
-        p("dense C", dense)
+        p("C sparse", C)
+        p("C dense", dense)
 
-        f0 = tf.zeros(n, np.float32)
-        g0 = tf.zeros(m, np.float32)
+        f = tf.linspace(0.1, 0.2, n)
+        g = tf.linspace(0.1, 0.2, m)
 
-        translated0 = sparse_matrix_dense_broadcasted_vector_add(C, -g0, axis=0)
-        translated1 = sparse_matrix_dense_broadcasted_vector_add(C, -f0, axis=1)
+        p("translation0", -g)
+        p("translation1", -f)
 
-        p("translated1", translated1)
-        p("translated1 to_dense", tf.sparse.to_dense(translated1, validate_indices=False))
-        p("translated0", translated0)
-        p("translated0 to_dense", tf.sparse.to_dense(translated0, validate_indices=False))
+        translated0 = sparse_matrix_dense_broadcasted_vector_add(C, -g, axis=0)
+        translated1 = sparse_matrix_dense_broadcasted_vector_add(C, -f, axis=1)
+
+        p("translated0 dense", dense - g)
+        p("translated1 dense", tf.transpose(tf.transpose(dense) - f))
+        # p("translated0 sparse", translated0)
+        p("translated0 sparse to_dense", tf.sparse.to_dense(translated0, validate_indices=False))
+        # p("translated1 sparse", translated1)
+        p("translated1 sparse to_dense", tf.sparse.to_dense(translated1, validate_indices=False))
 
 
-        g = epsilon * tf.reduce_logsumexp((-f0 - tf.transpose(dense)) / epsilon, -1)
+        print("===============")
+        f_init = tf.linspace(0.1, 0.2, n)
+
+        g = epsilon * tf.reduce_logsumexp((-f_init - tf.transpose(dense)) / epsilon, -1)
         f = epsilon * tf.reduce_logsumexp((-g - dense) / epsilon, -1)
+
+        p("translated dense", tf.transpose(-f_init - tf.transpose(dense)))
         p("g dense", g)
         p("translated2 dense", (-g - dense))
         p("f dense", f)
 
-        translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f0, axis=1) # TODO or is it axis=0?
+        translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f_init, axis=1) # TODO or is it axis=0?
         g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
         translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
         f = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
+        # p("translated sparse", translated)
+        p("translated sparse_to_dense", tf.sparse.to_dense(translated, validate_indices=False))
         p("g sparse", g)
-        p("translated2 sparse", translated2)
+        # p("translated2 sparse", translated2)
         p("translated2 sparse_to_dense", tf.sparse.to_dense(translated2, validate_indices=False))
         p("f sparse", f)
         return
@@ -492,5 +562,6 @@ def draw_edges(p1, p2, w, edges=True):
 
 if __name__ == "__main__":
     sparse_sinkhorn_test() ; exit()
+    sparse_full_sinkhorn_test() ; exit()
     trunc_test()
     broadcast_test()
