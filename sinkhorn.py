@@ -13,15 +13,9 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 # when axis == 0, we add v to each column of s,
 # when axis == 1, we add v to each row of s.
 def sparse_matrix_dense_broadcasted_vector_add(s, v, axis):
-    if axis == 0:
-        # return tf.SparseTensor(s.indices, tf.gather_nd(tf.reshape(v, [1, -1]), tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
-        s = tf.sparse.transpose(s)
-        s = tf.sparse.reorder(s)
-        reduced = tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
-        return tf.sparse.transpose(reduced)
-    elif axis == 1 or axis == -1:
-        s = tf.sparse.reorder(s)
-        return tf.SparseTensor(s.indices, tf.gather_nd(v, tf.reshape(s.indices[:, axis], (-1, 1))) + s.values, s.dense_shape)
+    assert axis in (0, 1)
+    other_axis = 1 - axis
+    return tf.SparseTensor(s.indices, tf.gather(v, s.indices[:, other_axis]) + s.values, s.dense_shape)
 
 
 def sparse_elementwise_op(s, op):
@@ -357,12 +351,12 @@ def sparse_sinkhorn_test():
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
 
-        if False:
+        if True:
             # some random sparse
             dense = tf.constant(np.random.binomial(1, 0.5, size=(n, m)) * np.random.normal(size=(n, m)), dtype=tf.float32)
             dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
             C = to_sparse(dense)
-        elif True:
+        elif False:
             # a zero matrix but sparsely represented
             dense = tf.constant(np.random.binomial(1, 0.5, size=(n, m)), dtype=tf.float32)
             C = to_sparse(dense)
@@ -388,12 +382,12 @@ def sparse_sinkhorn_test():
         translated1 = sparse_matrix_dense_broadcasted_vector_add(C, -f, axis=1)
 
         p("translated0 dense", dense - g)
-        p("translated1 dense", tf.transpose(tf.transpose(dense) - f))
         # p("translated0 sparse", translated0)
         p("translated0 sparse to_dense", tf.sparse.to_dense(translated0, validate_indices=False))
+
+        p("translated1 dense", tf.transpose(tf.transpose(dense) - f))
         # p("translated1 sparse", translated1)
         p("translated1 sparse to_dense", tf.sparse.to_dense(translated1, validate_indices=False))
-
 
         print("===============")
         f_init = tf.linspace(0.1, 0.2, n)
