@@ -105,6 +105,12 @@ config_mnist['mmd_kernel'] = 'IMQ' # RBF, IMQ
 config_mnist['lambda'] = 10.
 config_mnist['lambda_schedule'] = 'constant'
 
+config_mnist_ord = copy.deepcopy(config_mnist)
+config_mnist_ord['dataset'] = 'mnist_ord'
+config_mnist_ord['e_num_filters'] = 256
+config_mnist_ord['g_num_filters'] = 256
+
+
 # Toy MNIST experiment
 config_mnist_small = copy.deepcopy(config_mnist)
 config_mnist_small['z_test'] = 'mmd'

@@ -20,6 +20,7 @@ import sys
 
 datashapes = {}
 datashapes['mnist'] = [28, 28, 1]
+datashapes['mnist_ord'] = [28, 28, 1]
 datashapes['cifar10'] = [32, 32, 3]
 datashapes['celebA'] = [64, 64, 3]
 datashapes['grassli'] = [64, 64, 3]
@@ -236,6 +237,8 @@ class DataHandler(object):
             self._load_dsprites(opts)
         elif opts['dataset'] == 'mnist_mod':
             self._load_mnist(opts, modified=True)
+        elif opts['dataset'] == 'mnist_ord':
+            self._load_mnist(opts, ordered=True)
         elif opts['dataset'] == 'zalando':
             self._load_mnist(opts, zalando=True)
         elif opts['dataset'] == 'mnist3':
@@ -397,7 +400,7 @@ class DataHandler(object):
 
         logging.debug('Loading Done.')
 
-    def _load_mnist(self, opts, zalando=False, modified=False):
+    def _load_mnist(self, opts, zalando=False, modified=False, ordered=False):
         """Load data from MNIST or ZALANDO files.
 
         """
@@ -468,6 +471,16 @@ class DataHandler(object):
         self.test_data = Data(opts, X[-test_size:])
         self.labels = y[:-test_size]
         self.test_labels = y[-test_size:]
+
+        if ordered:
+            sort_index_train = np.argsort(self.labels)
+            sort_index_test = np.argsort(self.test_labels)
+
+            self.labels = self.labels[sort_index_train]
+            self.test_labels = self.test_labels[sort_index_test]
+            self.data = self.data[sort_index_train]
+            self.test_data = self.test_data[sort_index_test]
+
         self.num_points = len(self.data)
 
         logging.debug('Loading Done.')

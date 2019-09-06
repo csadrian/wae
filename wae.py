@@ -16,6 +16,7 @@ import logging
 import ops
 import utils
 import sinkhorn
+import random
 import neptune
 import PIL
 from models import encoder, decoder, z_adversary
@@ -706,11 +707,13 @@ class WAE(object):
                     self.resample_nat_targets()
 
                 # Sample batches of data points and Pz noise
-                data_ids = np.random.choice(
-                    self.train_size, opts['batch_size'], replace=False)
+                if self.opts['shuffle']:
+                    data_ids = np.random.choice(self.train_size, opts['batch_size'], replace=False)
+                else:
+                    rnd_it = random.randint(0, batches_num-1)
+                    data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
 
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
-
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 

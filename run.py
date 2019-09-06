@@ -67,6 +67,7 @@ parser.add_argument('--name', dest='name', type=str, default="experiment", help=
 parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
 parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
+parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
 
 FLAGS = parser.parse_args()
 
@@ -82,6 +83,8 @@ def main():
         opts = configs.config_celebA_small
     elif FLAGS.exp == 'mnist':
         opts = configs.config_mnist
+    elif FLAGS.exp == 'mnist_ord':
+        opts = configs.config_mnist_ord
     elif FLAGS.exp == 'mnist_small':
         opts = configs.config_mnist_small
     elif FLAGS.exp == 'dsprites':
@@ -144,7 +147,8 @@ def main():
         opts['epoch_num'] = FLAGS.epoch_num
     if FLAGS.e_pretrain is not None:
         opts['e_pretrain'] = FLAGS.e_pretrain
-
+    if FLAGS.shuffle is not None:
+        opts['shuffle'] = FLAGS.shuffle
 
     if opts['verbose']:
         pass
