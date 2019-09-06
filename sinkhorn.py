@@ -299,19 +299,21 @@ def sparse_sinkhorn_test():
         n = 5
         m = 3
         d = 4
-        k = n
+        k = n - 1
         epsilon = 0.01
 
-        np.random.seed(3)
+        np.random.seed(4)
         x_np = np.random.normal(size=(n, d)).astype(np.float32) / 10
         y_np = np.random.normal(size=(m, d)).astype(np.float32) / 10
         x = tf.constant(x_np)
         y = tf.Variable(y_np)
         sess.run(tf.global_variables_initializer())
 
-        dense = pdist(x, y)
-
         C = SparsePdist(x, y, rows=n, cols=m, k=k)
+
+        # dense = pdist(x, y)
+        dense = tf.sparse.to_dense(C, validate_indices=False)
+        dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
 
         e(tf.global_variables_initializer())
 
@@ -345,33 +347,6 @@ def sparse_sinkhorn_test():
         p("translated2 sparse_to_dense", tf.sparse.to_dense(translated2, validate_indices=False))
         p("f sparse", f)
         return
-
-
-
-        p("dense-sparse-dense", tf.sparse.to_dense(to_sparse(dense)))
-
-        p("lse -C axis=0", sparse_logsumexp(minus(C), axis=0))
-        p("lse -C axis=1", sparse_logsumexp(minus(C), axis=1))
-
-        p("lse -dense axis=0", tf.reduce_logsumexp(-dense, axis=0))
-        p("lse -dense axis=1", tf.reduce_logsumexp(-dense, axis=1))
-
-        f = tf.zeros(n, np.float32)
-        translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=0) # TODO or is it axis=0?
-        p("translated", translated)
-        multiplied = scalar_mul(translated, 1.0/epsilon)
-        p("multiplied", multiplied)
-        p("sparse_logsumexp(multiplied, axis=0)", sparse_logsumexp(multiplied, axis=0))
-        p("tf.logsumexp(tf.sparse.to_dense(multiplied), axis=0)",
-            tf.reduce_logsumexp(tf.sparse.to_dense(multiplied, validate_indices=False), axis=0)
-        )
-        return
-        g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), axis=0)
-        p("g", g)
-        translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=1) # TODO or is it axis=1?
-        p("translated2", translated2)
-        f2 = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), axis=1)
-        p("f2", f2)
 
 
 def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
