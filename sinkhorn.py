@@ -570,6 +570,10 @@ def draw_points(p, w):
 
 def draw_edges(p1, p2, w, edges=True):
     img = np.zeros((w, w, 3), np.uint8)
+
+    p1 = p1 * 10
+    p2 = p2 * 10
+
     p1 = np.int32(w / 2 + p1[:, :2] * w / 8)
     p2 = np.int32(w / 2 + p2[:, :2] * w / 8)
     if edges:

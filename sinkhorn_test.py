@@ -51,7 +51,7 @@ def grid(a, b):
 def main():
     n = 10
     d = 2
-    step_count = 10
+    step_count = 100
     resample_targets = False
     VIDEO_SIZE = 512
 
@@ -63,6 +63,9 @@ def main():
     target_np = np.random.normal(size=(n, d)).astype(np.float32)
 
     assert start_np.shape == target_np.shape == (n, d)
+
+    target_np /= 10
+    start_np /= 10
 
     print(np.mean(target_np[:, :4], axis=0), "\n", np.cov(target_np[:, :4].T))
 
@@ -80,7 +83,7 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=1, k=10)
+        OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=10, k=10)
 
         # OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
 
