@@ -49,9 +49,9 @@ def grid(a, b):
 
 
 def main():
-    n = 100
-    d = 64
-    step_count = 300
+    n = 10
+    d = 2
+    step_count = 10
     resample_targets = False
     VIDEO_SIZE = 512
 
@@ -80,9 +80,10 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        # OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=10, k=10)
+        OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=1, k=10)
 
-        OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
+        # OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
+
         # randomly throwing away elements of C, no importance sampling:
         # OT, P, f, g, C = sinkhorn.EmulatedSparseSinkhornLoss(pos, target, epsilon=0.01, niter=10)
         # adjusted with autocorrelation terms:
