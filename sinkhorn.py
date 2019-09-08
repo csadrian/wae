@@ -294,7 +294,10 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     # P = (-f[:, None] - g[None, :] - C) / epsilon
     P = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, 0) # TODO or is it the other way round?
     P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 1)
-    OT = tf.reduce_sum(tf.exp(P.values) * C.values)
+    P = scalar_mul(P, 1.0 / epsilon)
+    # P = tf.sparse.reorder(P)
+    # C = tf.sparse.reorder(C)
+    OT = tf.reduce_mean(tf.exp(P.values) * C.values)
     return OT, P, f, g
 
 
