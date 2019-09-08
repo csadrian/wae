@@ -172,20 +172,15 @@ class WAE(object):
 
         n = opts['nat_size']
 
-        x_latents_with_current_batch = tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False))
+        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
         x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
 
         niter=opts['sinkhorn_iters']
-        #OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets,
-        #
-        #C = sinkhorn.pdist(x_latents_with_current_batch, self.nat_targets)
-        #P, f, g = sinkhorn.Sinkhorn_log_domain(C, n, n, f=None, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-        #OT = tf.reduce_sum(P*C)
-        if True:
+        if opts['sinkhorn_sparse']:
             OT, P, f, g, C = sinkhorn.SparseSinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'], sparse_indices=self.nat_sparse_indices)
         else:
-            OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'], sparse_indices=self.nat_sparse_indices)
+            OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         self.P = P
         self.C = C
         return OT
@@ -617,8 +612,15 @@ class WAE(object):
         return latents
 
     def sparse_indices_topk(self, n, m, k=100):
-        rnd_x = np.random.choice(n, size=(k,1), replace=True)
-        rnd_y = np.random.choice(m, size=(k,1), replace=True)
+        #rnd_x = np.random.choice(n, size=(k,1), replace=True)
+        #rnd_y = np.random.choice(m, size=(k,1), replace=True)
+        import itertools
+        i = [k for k in itertools.product(np.arange(n, dtype=np.int32), repeat=2)]
+        return i    
+        rnd_x = np.arange(n)
+        rnd_y = np.arange(n)
+        rnd_x[:, None] 
+        
         indices = np.concatenate([rnd_x, rnd_y], axis=1)
         return indices
         #return np.array([[0,1], [1,2]] )
@@ -675,6 +677,9 @@ class WAE(object):
           #if True:
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
+
+
+          self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
 
           for epoch in range(opts["epoch_num"]):
 
@@ -736,7 +741,7 @@ class WAE(object):
                     video.write_frame(frame)
                     print("frame")
 
-                self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
+                #self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
                 """                
                 if epoch < 1:
                     rec_lambda = 0.0

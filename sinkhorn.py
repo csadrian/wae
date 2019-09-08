@@ -148,10 +148,10 @@ def pdist(x, y):
     nx = tf.reshape(nx, [-1, 1])
     ny = tf.reshape(ny, [1, -1])
 
-    return (nx - 2*tf.matmul(x, y, False, True) + ny)
+    # return (nx - 2*tf.matmul(x, y, False, True) + ny)
     # it used to be Wasserstein_1:
-    # sqrt_epsilon = 1e-9
-    # return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
+    sqrt_epsilon = 1e-9
+    return tf.sqrt(tf.maximum(nx - 2*tf.matmul(x, y, False, True) + ny, sqrt_epsilon))
 
 
 def pdist_more_memory_eaten_fewer_numerical_issues(x, y):
@@ -201,7 +201,7 @@ def sparse_reduce_min(s, axis):
 
 
 def sparse_naive_logsumexp(s, axis):
-    return tf.reshape(tf.log(1e-13+sparse_reduce_sum(sparse_exp(s), axis)), [-1])
+    return tf.reshape(tf.log(1e-8+sparse_reduce_sum(sparse_exp(s), axis)), [-1])
 
 
 def sparse_logsumexp(s, axis):
@@ -478,30 +478,16 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
     OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P_temp, P, f, g, C
+    return OT, P, f, g, C
 
-"""
-def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
-    # rows = tf.shape(sources)[0]
-    # cols = tf.shape(targets)[0]
-    rows = sources.get_shape().as_list()[0]
-    cols = targets.get_shape().as_list()[0]
-    C = SparsePdist(sources, targets, rows, cols, k=k)
-    OT, P_temp, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P_temp, P, f, g, C
-"""
 
 def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10):
-
     sparse_xs = tf.gather(sources, sparse_indices[:, 0], validate_indices=False)
     sparse_ys = tf.gather(targets, sparse_indices[:, 1], validate_indices=False)
-    sparse_dists = tf.reshape(tf.reduce_sum(tf.square(sparse_xs-sparse_ys), -1), (-1, ))
+    # W1
+    sparse_dists = tf.sqrt(1e-8 + tf.reshape(tf.reduce_sum(tf.square(sparse_xs-sparse_ys), -1), (-1, )))
     sparse_dist_matrix = tf.SparseTensor(sparse_indices, sparse_dists, (sources.get_shape().as_list()[0], targets.get_shape().as_list()[0]))
     C = sparse_dist_matrix
-     
-    #rows = sources.get_shape().as_list()[0]
-    #cols = targets.get_shape().as_list()[0]
-    #C = SparsePdist(sources, targets, rows, cols, k=k)
     OT, P_temp, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P, f, g, C
 
