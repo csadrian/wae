@@ -52,6 +52,8 @@ def main():
     n = 10
     d = 2
     step_count = 100
+    sinkhorn_iters = 1
+    k = n # k = n means dense
     resample_targets = False
     VIDEO_SIZE = 512
 
@@ -83,9 +85,9 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        OT, P, f, g, C = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=10, k=10)
+        OT_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=0.01, niter=sinkhorn_iters, k=k)
 
-        # OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=10)
+        OT, P, f, g, C = sinkhorn.SinkhornLoss(pos, target, epsilon=0.01, niter=sinkhorn_iters)
 
         # randomly throwing away elements of C, no importance sampling:
         # OT, P, f, g, C = sinkhorn.EmulatedSparseSinkhornLoss(pos, target, epsilon=0.01, niter=10)
@@ -107,6 +109,12 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
+                P_s_np, P_np = sess.run([sinkhorn.to_dense(P_s), P])
+                print("P")
+                print(P_np[:5, :5])
+                print("P_s")
+                print(P_s_np[:5, :5])
+
                 if resample_targets:
                     _, next_pos_np, target_np = sess.run([train_step, pos, target])
                 else:

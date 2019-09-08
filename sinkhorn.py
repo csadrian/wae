@@ -124,7 +124,7 @@ def trunc_test():
 
         print("x", x_np, "y", y_np)
         p("dense dist", dense)
-        p("sparse dist", tf.sparse.to_dense(sparse, validate_indices=False))
+        p("sparse dist", to_dense(sparse))
 
         sparse_summed = tf.sparse.sparse_dense_matmul(sparse, tf.ones((3, 1)))
         p("sparse_summed", sparse_summed)
@@ -250,6 +250,10 @@ def to_sparse(dense):
     return sparse
 
 
+def to_dense(s):
+    return tf.sparse.to_dense(s, validate_indices=False)
+
+
 # for reference:
 # def Sinkhorn_step(C, f, epsilon):
 #   g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
@@ -316,7 +320,7 @@ def sparse_full_sinkhorn_test():
 
         C_sparse = SparsePdist(x, y, rows=n, cols=m, k=k)
 
-        C_dense = tf.sparse.to_dense(C_sparse, validate_indices=False)
+        C_dense = to_dense(C_sparse)
         C_dense = tf.where(tf.equal(C_dense, 0.0), np.inf * tf.ones_like(C_dense), C_dense)
 
         e(tf.global_variables_initializer())
@@ -368,7 +372,7 @@ def sparse_sinkhorn_test():
             dense = tf.zeros_like(dense)
         else:
             C = SparsePdist(x, y, rows=n, cols=m, k=k)
-            dense = tf.sparse.to_dense(C, validate_indices=False)
+            dense = to_dense(C)
             dense = tf.where(tf.equal(dense, 0.0), np.inf * tf.ones_like(dense), dense)
 
         e(tf.global_variables_initializer())
@@ -389,11 +393,11 @@ def sparse_sinkhorn_test():
 
         p("translated0 dense", dense - g)
         # p("translated0 sparse", translated0)
-        p("translated0 sparse to_dense", tf.sparse.to_dense(translated0, validate_indices=False))
+        p("translated0 sparse to_dense", to_dense(translated0))
 
         p("translated1 dense", tf.transpose(tf.transpose(dense) - f))
         # p("translated1 sparse", translated1)
-        p("translated1 sparse to_dense", tf.sparse.to_dense(translated1, validate_indices=False))
+        p("translated1 sparse to_dense", to_dense(translated1))
 
 
         '''
@@ -409,7 +413,7 @@ def sparse_sinkhorn_test():
         p("f dense", f)
 
         def td(s):
-            return tf.sparse.to_dense(s, validate_indices=False)
+            return to_dense(s)
 
         '''
         mx = 0.0 * tf.ones(C.dense_shape[0], dtype=tf.float32)
@@ -432,10 +436,10 @@ def sparse_sinkhorn_test():
         translated2 = sparse_matrix_dense_broadcasted_vector_add(minus(C), -g, axis=0) # TODO or is it axis=1?
         f = epsilon * sparse_logsumexp(scalar_mul(translated2, 1.0 / epsilon), 1)
         # p("translated sparse", translated)
-        p("translated sparse_to_dense", tf.sparse.to_dense(translated, validate_indices=False))
+        p("translated sparse_to_dense", to_dense(translated))
         p("g sparse", g)
         # p("translated2 sparse", translated2)
-        p("translated2 sparse_to_dense", tf.sparse.to_dense(translated2, validate_indices=False))
+        p("translated2 sparse_to_dense", to_dense(translated2))
         p("f sparse", f)
         return
 
