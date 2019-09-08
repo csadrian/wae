@@ -49,11 +49,12 @@ def grid(a, b):
 
 
 def main():
-    n = 10
-    d = 2
+    use_sparse = True
+    n = 100
+    d = 64
     step_count = 100
-    sinkhorn_iters = 1
-    sinkhorn_epsilon = 0.01 # 0.01
+    sinkhorn_iters = 10
+    sinkhorn_epsilon = 0.1 # 0.01
     k = n # k = n means dense
     resample_targets = False
     VIDEO_SIZE = 512
@@ -90,7 +91,12 @@ def main():
         OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
         OT_d, Q_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
 
-        OT, P, f, g, C = OT_s, P_s, f_s, g_s, C_s
+        if use_sparse:
+            OT, P, f, g, C = OT_s, P_s, f_s, g_s, C_s
+        else:
+            OT, P, f, g, C = OT_d, P_d, f_d, g_d, C_d
+
+
 
         # randomly throwing away elements of C, no importance sampling:
         # OT, P, f, g, C = sinkhorn.EmulatedSparseSinkhornLoss(pos, target, epsilon=0.01, niter=10)
