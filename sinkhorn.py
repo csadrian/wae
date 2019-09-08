@@ -505,7 +505,7 @@ def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):
 
 
 # SinkhornLoss corrected with autocorrelation
-def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10, sparse_indices=None):
+def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     OTxy, Pxy, fxy, gxy, Cxy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
     OTxx, Pxx, fxx, gxx, Cxx = SinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
     OTyy, Pyy, fyy, gyy, Cyy = SinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
@@ -514,7 +514,7 @@ def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10, sparse_indices=
 
 
 # SinkhornLoss corrected with autocorrelation
-def SparseSinkhornDivergence(sources, targets, epsilon=0.01, niter=10, sparse_indices=None):
+def SparseSinkhornDivergence(sources, targets, sparse_indices, epsilon=0.01, niter=10):
     OTxy, Qxy, Pxy, fxy, gxy, Cxy = SparseSinkhornLoss(sources, targets, epsilon=epsilon, niter=niter, sparse_indices=sparse_indices)
     #OTxx, Pxx, fxx, gxx, Cxx = SparseSinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
     #OTyy, Pyy, fyy, gyy, Cyy = SparseSinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
