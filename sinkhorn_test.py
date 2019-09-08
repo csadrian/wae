@@ -50,27 +50,29 @@ def grid(a, b):
 
 def main():
     use_sparse = True
-    n = 100
+    n = 200
     d = 64
     step_count = 100
     sinkhorn_iters = 10
-    sinkhorn_epsilon = 0.1 # 0.01
-    k = n # k = n means dense
+    sinkhorn_epsilon = 0.1 if use_sparse else 0.01
+    k = 20 # k = n means dense
     resample_targets = False
+    # shrinking domain to avoid logsumexp trick.
+    shrinkage = 0.1
     VIDEO_SIZE = 512
 
     np.random.seed(2)
     # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
     start_np = np.random.normal(size=(n, d)).astype(np.float32)
-    start_np *= 2
+    start_np *= 2 # 0.05
     start_np[:, 0] += start_np[:, 1]
     start_np += 2
     target_np = np.random.normal(size=(n, d)).astype(np.float32)
 
     assert start_np.shape == target_np.shape == (n, d)
 
-    target_np /= 10
-    start_np /= 10
+    target_np *= shrinkage
+    start_np *= shrinkage
 
     print(np.mean(target_np[:, :4], axis=0), "\n", np.cov(target_np[:, :4].T))
 
@@ -84,28 +86,30 @@ def main():
     with tf.Session() as sess:
         pos = tf.Variable(start_np.astype(np.float32))
         if resample_targets:
-            target = tf.random.normal((n, d), dtype=np.float32)
+            target = tf.random.normal((n, d), dtype=np.float32) * shrinkage
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
-        OT_d, Q_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
+        # Q are used for debugging.
+        print("building sinkhorn ops graph")
+        OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(target, pos, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
+        OT_d, Q_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(target, pos, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
 
         if use_sparse:
             OT, P, f, g, C = OT_s, P_s, f_s, g_s, C_s
         else:
             OT, P, f, g, C = OT_d, P_d, f_d, g_d, C_d
 
-
-
         # randomly throwing away elements of C, no importance sampling:
         # OT, P, f, g, C = sinkhorn.EmulatedSparseSinkhornLoss(pos, target, epsilon=0.01, niter=10)
         # adjusted with autocorrelation terms:
         # OT, P, f, g, C = sinkhorn.SinkhornDivergence(pos, target, epsilon=0.01, niter=10)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
 
+        print("building grad op")
         train_step = optimizer.minimize(OT, var_list=pos)
+        print("building grad op done")
 
         # did not help anyway
         clip_gradients = False
@@ -167,7 +171,8 @@ def main():
                     target_np_aligned = target_np
 
                 draw_edges = do_initial_matching or do_rematching
-                frame = sinkhorn.draw_edges(next_pos_np, target_np_aligned, VIDEO_SIZE, edges=draw_edges)
+                frame = sinkhorn.draw_edges(next_pos_np, target_np_aligned,
+                                            VIDEO_SIZE, radius=4 * shrinkage, edges=draw_edges)
                 video.write_frame(frame)
 
                 print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",

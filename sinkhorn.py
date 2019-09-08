@@ -297,8 +297,6 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     P = P_temp
     P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 0)
     P = scalar_mul(P, 1.0 / epsilon)
-    P = tf.sparse.reorder(P)
-    C = tf.sparse.reorder(C)
     OT = tf.reduce_mean(tf.exp(P.values) * C.values)
     return OT, P_temp, P, f, g
 
@@ -577,14 +575,14 @@ def draw_points(p, w):
     return img
 
 
-def draw_edges(p1, p2, w, edges=True):
+def draw_edges(p1, p2, w, radius, edges=True):
     img = np.zeros((w, w, 3), np.uint8)
 
-    p1 = p1 * 10
-    p2 = p2 * 10
+    p1 = p1 / radius
+    p2 = p2 / radius
 
-    p1 = np.int32(w / 2 + p1[:, :2] * w / 8)
-    p2 = np.int32(w / 2 + p2[:, :2] * w / 8)
+    p1 = np.int32(w / 2 + p1[:, :2] * w / 2)
+    p2 = np.int32(w / 2 + p2[:, :2] * w / 2)
     if edges:
         for (x1, y1), (x2, y2) in zip(p1, p2):
             cv2.line(img, (x1, y1), (x2, y2), (255, 255, 255), 1, cv2.LINE_AA)
