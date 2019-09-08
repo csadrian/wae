@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import cv2
 import moviepy.editor as mvp
+import itertools
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 # note: conditionally imports networkx
 
@@ -90,9 +91,12 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
+        sparse_indices_np  = [l for l in itertools.product(np.arange(n, dtype=np.int64), repeat=2)]
+        sparse_indices = tf.constant(sparse_indices_np, dtype=np.int64)
+
         # Q are used for debugging.
         print("building sinkhorn ops graph")
-        OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(target, pos, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
+        OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(target, pos, sparse_indices, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
         OT_d, Q_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(target, pos, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
 
         if use_sparse:

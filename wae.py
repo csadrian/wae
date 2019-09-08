@@ -767,19 +767,19 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match, loss_ot, P_np] = self.sess.run(
+                [_, loss, loss_rec, loss_match, loss_ot, P_np, C_np] = self.sess.run(
                     [self.ae_opt,
                      self.wae_objective,
                      self.loss_reconstruct,
                      self.penalty,
-                     self.ot_loss, self.P],
+                     self.ot_loss, self.P, self.C],
                     feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
                     _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('loss_zxz', x=counter, y=zxz_loss_np)
-
+                print("C_np", C_np)
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
                 # for el in grads:
                 #    print  el
