@@ -178,7 +178,7 @@ class WAE(object):
 
         niter=opts['sinkhorn_iters']
         if opts['sinkhorn_sparse']:
-            OT, P, f, g, C = sinkhorn.SparseSinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'], sparse_indices=self.nat_sparse_indices)
+            OT, P, f, g, C = sinkhorn.SparseSinkhornDivergence(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
             OT, P, f, g, C = sinkhorn.SinkhornDivergence(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         self.P = P
