@@ -276,10 +276,11 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
     for i in range(niter):
         f, g = Sinkhorn_step(C, f, epsilon)
 
+    P_temp = -f[:, None] - C
     P = (-f[:, None] - g[None, :] - C) / epsilon
     # P = rounding_log(P, tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
     OT = tf.reduce_mean(tf.exp(P) * C)
-    return OT, P, f, g
+    return OT, P_temp, P, f, g
 
 
 def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
@@ -292,13 +293,14 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
 
     # happy times when it looked this simple:
     # P = (-f[:, None] - g[None, :] - C) / epsilon
-    P = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, 0) # TODO or is it the other way round?
-    P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 1)
+    P_temp = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, 1)
+    P = P_temp
+    P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 0)
     P = scalar_mul(P, 1.0 / epsilon)
-    # P = tf.sparse.reorder(P)
-    # C = tf.sparse.reorder(C)
+    P = tf.sparse.reorder(P)
+    C = tf.sparse.reorder(C)
     OT = tf.reduce_mean(tf.exp(P.values) * C.values)
-    return OT, P, f, g
+    return OT, P_temp, P, f, g
 
 
 def sparse_full_sinkhorn_test():
@@ -478,8 +480,8 @@ def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
 # TODO correct terminology is unclear.
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
-    OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P, f, g, C
+    OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P_temp, P, f, g, C
 
 
 def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
@@ -488,8 +490,8 @@ def SparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10, k=None):
     rows = sources.get_shape().as_list()[0]
     cols = targets.get_shape().as_list()[0]
     C = SparsePdist(sources, targets, rows, cols, k=k)
-    OT, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P, f, g, C
+    OT, P_temp, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P_temp, P, f, g, C
 
 
 def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):

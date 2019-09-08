@@ -53,7 +53,7 @@ def main():
     d = 2
     step_count = 100
     sinkhorn_iters = 1
-    sinkhorn_epsilon = 0.01
+    sinkhorn_epsilon = 0.01 # 0.01
     k = n # k = n means dense
     resample_targets = False
     VIDEO_SIZE = 512
@@ -87,8 +87,8 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        OT_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
-        OT_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
+        OT_s, Q_s, P_s, f_s, g_s, C_s = sinkhorn.SparseSinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters, k=k)
+        OT_d, Q_d, P_d, f_d, g_d, C_d = sinkhorn.SinkhornLoss(pos, target, epsilon=sinkhorn_epsilon, niter=sinkhorn_iters)
 
         OT, P, f, g, C = OT_s, P_s, f_s, g_s, C_s
 
@@ -112,11 +112,23 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
+                '''
                 P_s_np, P_d_np = sess.run([sinkhorn.to_dense(P_s), P_d])
                 print("P_d")
                 print(P_d_np[:5, :5])
                 print("P_s")
                 print(P_s_np[:5, :5])
+                C_s_np, C_d_np = sess.run([sinkhorn.to_dense(C_s), C_d])
+                print("C_d")
+                print(C_d_np[:5, :5])
+                print("C_s")
+                print(C_s_np[:5, :5])
+                Q_s_np, Q_d_np = sess.run([sinkhorn.to_dense(Q_s), Q_d])
+                print("Q_d")
+                print(Q_d_np[:5, :5])
+                print("Q_s")
+                print(Q_s_np[:5, :5])
+
                 f_s_np, f_d_np, OT_s_np, OT_d_np = sess.run([f_s, f_d, OT_s, OT_d])
                 print("f_d")
                 print(f_d_np)
@@ -126,8 +138,16 @@ def main():
                 print("OT_s", OT_s_np)
                 print("grad OT_d", sess.run(tf.gradients(OT_d, pos)))
                 print("grad OT_s", sess.run(tf.gradients(OT_s, pos)))
+                print("Q_d + C_d", (Q_d_np + C_d_np)[:5, :5])
+                print("Q_s + C_s", (Q_s_np + C_s_np)[:5, :5])
 
-                return
+                print("d C", np.linalg.norm(C_d_np - C_s_np))
+                print("d P", np.linalg.norm(P_d_np - P_s_np))
+                print("d Q", np.linalg.norm(Q_d_np - Q_s_np))
+                print("d f", np.linalg.norm(f_d_np - f_s_np))
+                print("d Q_d -C_d-f_d", np.linalg.norm(Q_d_np - (-C_d_np - f_d_np)))
+                print("d Q_s -C_s-f_s", np.linalg.norm(Q_s_np - (-C_s_np - f_s_np)))
+                '''
 
                 if resample_targets:
                     _, next_pos_np, target_np = sess.run([train_step, pos, target])
