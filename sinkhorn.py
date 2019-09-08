@@ -201,7 +201,7 @@ def sparse_reduce_min(s, axis):
 
 
 def sparse_naive_logsumexp(s, axis):
-    return tf.reshape(tf.log(sparse_reduce_sum(sparse_exp(s), axis)), [-1])
+    return tf.reshape(tf.log(1e-13+sparse_reduce_sum(sparse_exp(s), axis)), [-1])
 
 
 def sparse_logsumexp(s, axis):
@@ -502,7 +502,7 @@ def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10)
     #rows = sources.get_shape().as_list()[0]
     #cols = targets.get_shape().as_list()[0]
     #C = SparsePdist(sources, targets, rows, cols, k=k)
-    OT, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    OT, P_temp, P, f, g = SparseSinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P, f, g, C
 
 

@@ -732,7 +732,7 @@ class WAE(object):
                 if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False, self.nat_targets: self.nat_targets_np})
                     print("frame,", nat_targets_np.shape)
-                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, edges=False)
+                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=4, edges=False)
                     video.write_frame(frame)
                     print("frame")
 
