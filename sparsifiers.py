@@ -78,9 +78,11 @@ class TfTopkSparsifier(Sparsifier):
 
             ran = np.arange(i*self.batch_size, (i+1)*self.batch_size)
             temp = np.zeros_like(top_indices_np) + ran[:,None,None]
+            temp2 = np.zeros_like(top_indices_t_np) + ran[:,None,None]
+
             top_indices_joined = np.concatenate([temp, top_indices_np], axis=2)
             top_indices_joined = np.reshape(top_indices_joined, (-1, 2))
-            top_indices_t_joined = np.concatenate([top_indices_t_np, temp], axis=2)
+            top_indices_t_joined = np.concatenate([top_indices_t_np, temp2], axis=2)
             top_indices_t_joined = np.reshape(top_indices_t_joined, (-1, 2))
             
             all_indices.append(top_indices_joined)
