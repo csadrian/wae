@@ -25,8 +25,62 @@ def sparse_elementwise_op(s, op):
 # TODO are these really not implemented?
 def minus(s):
     return tf.SparseTensor(s.indices, -s.values, s.dense_shape)
+
+
 def scalar_mul(s, f):
     return tf.SparseTensor(s.indices, f * s.values, s.dense_shape)
+
+
+def sparse_reduce_sum(s, axis):
+    if axis == 0:
+        # TODO seriously, no tf.sparse.dense_sparse_matmul()?
+        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(s), tf.ones((tf.shape(s)[0], 1)))
+    elif axis == 1 or axis == -1:
+        summed = tf.sparse.sparse_dense_matmul(s, tf.ones((tf.shape(s)[1], 1)))
+    else:
+        raise Exception("unimplemented")
+    return summed
+
+
+def sparse_exp(s):
+    return sparse_elementwise_op(s, lambda e: tf.exp(e))
+
+
+def sparse_reduce_min(s, axis):
+    return - tf.sparse.reduce_max(minus(s), axis)
+
+
+def sparse_naive_logsumexp(s, axis):
+    return tf.reshape(tf.log(sparse_reduce_sum(sparse_exp(s), axis)), [-1])
+
+
+def sparse_logsumexp(s, axis):
+    if axis == 0:
+        other_axis = 1
+    elif axis == 1 or axis == -1:
+        other_axis = 0
+
+    raw_max = tf.sparse.reduce_max(s, axis=axis)
+    mx = tf.stop_gradient(
+        tf.where(
+            tf.is_finite(raw_max), raw_max,
+            tf.zeros_like(raw_max)))
+    result = sparse_naive_logsumexp(sparse_matrix_dense_broadcasted_vector_add(s, -mx, axis), axis) + mx
+    return result
+
+
+def to_sparse(dense):
+    # Find indices where the tensor is not zero
+    idx = tf.where(tf.not_equal(dense, 0))
+    # Make the sparse tensor
+    # Use tf.shape(a_t, out_type=tf.int64) instead of a_t.get_shape()
+    # if tensor shape is dynamic
+    sparse = tf.SparseTensor(idx, tf.gather_nd(dense, idx), tf.shape(dense, out_type=tf.int64))
+    return sparse
+
+
+def to_dense(s):
+    return tf.sparse.to_dense(s, validate_indices=False)
 
 
 def broadcast_test():
@@ -159,130 +213,12 @@ def pdist_more_memory_eaten_fewer_numerical_issues(x, y):
     return tf.reduce_sum(tf.square(dx), -1)
 
 
-def Sinkhorn_step_nonent(C, f):
-    g = tf.reduce_logsumexp(-f-tf.transpose(C), -1)
-    f = tf.reduce_logsumexp(-g-C, -1)
-    return f, g
-
-
-def Sinkhorn_nonent(C, f=None, niter=1000):
-    n = tf.shape(C)[0]
-    if f is None:
-        f = tf.zeros(n, np.float32)
-    for i in range(niter):
-        f, g = Sinkhorn_step(C, f)
-    P = tf.exp(-f[:,None]-g[None,:]-C)/tf.cast(n, tf.float32)
-    return P, f, g
-
-
-def naive_dense_logsumexp(a, axis):
-    return tf.reshape(tf.log(1e-8 + tf.maximum(0.0, tf.reduce_sum(tf.exp(a), axis))), [-1])
-
-# based on https://github.com/tensorflow/tensorflow/blob/r1.14/tensorflow/python/ops/math_ops.py#L2396-L2412
-def smart_dense_logsumexp_reimpl(input_tensor, axis):
-    raw_max = tf.reduce_max(input_tensor, axis=axis, keepdims=True)
-    my_max = tf.stop_gradient(
-        tf.where(
-            tf.is_finite(raw_max), raw_max,
-            tf.zeros_like(raw_max)))
-    result = tf.log(
-        tf.reduce_sum(
-            tf.exp(input_tensor - my_max),
-            axis,
-            keepdims=False))
-    my_max = tf.reshape(my_max, tf.shape(result))
-    result = result + my_max
-    return result
-
-
 def Sinkhorn_step(C, f, epsilon):
-    logsumexp_mode = "naive"
-    assert logsumexp_mode in ("naive", "builtin", "builtin-reimpl")
-    if logsumexp_mode == "builtin-reimpl":
-        g = epsilon * smart_dense_logsumexp_reimpl((-f - tf.transpose(C)) / epsilon, -1)
-        f = epsilon * smart_dense_logsumexp_reimpl((-g - C) / epsilon, -1)
-    elif logsumexp_mode == "naive":
-        g = epsilon * naive_dense_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
-        f = epsilon * naive_dense_logsumexp((-g - C) / epsilon, -1)
-    elif logsumexp_mode == "builtin":
-        g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
-        f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
+    g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
+    f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
     return f, g
 
 
-def sparse_reduce_sum(s, axis):
-    if axis == 0:
-        # TODO seriously, no tf.sparse.dense_sparse_matmul()?
-        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(s), tf.ones((tf.shape(s)[0], 1)))
-    elif axis == 1 or axis == -1:
-        summed = tf.sparse.sparse_dense_matmul(s, tf.ones((tf.shape(s)[1], 1)))
-    else:
-        raise Exception("unimplemented")
-    return summed
-
-
-def sparse_exp(s):
-    return sparse_elementwise_op(s, lambda e: tf.exp(e))
-
-
-def sparse_reduce_min(s, axis):
-    return - tf.sparse.reduce_max(minus(s), axis)
-
-
-def sparse_naive_logsumexp(s, axis):
-    return tf.reshape(tf.log(sparse_reduce_sum(sparse_exp(s), axis)), [-1])
-
-
-def sparse_logsumexp(s, axis):
-    if axis == 0:
-        other_axis = 1
-    elif axis == 1 or axis == -1:
-        other_axis = 0
-
-    raw_max = tf.sparse.reduce_max(s, axis=axis)
-    mx = tf.stop_gradient(
-        tf.where(
-            tf.is_finite(raw_max), raw_max,
-            tf.zeros_like(raw_max)))
-    result = sparse_naive_logsumexp(sparse_matrix_dense_broadcasted_vector_add(s, -mx, axis), axis) + mx
-    return result
-
-
-# TODO numerical stability went out of the window.
-def my_sleazy_logsumexp(s, axis):
-    n, m = s.get_shape().as_list()
-    exped = sparse_elementwise_op(s, tf.exp)
-    if axis == 0:
-        # TODO seriously, no tf.sparse.dense_sparse_matmul()?
-        summed = tf.sparse.sparse_dense_matmul(tf.sparse.transpose(exped), tf.ones((n, 1)))
-        logged = tf.log(summed)
-        logged = tf.reshape(logged, (m, ))
-    elif axis == 1 or axis == -1:
-        summed = tf.sparse.sparse_dense_matmul(exped, tf.ones((m, 1)))
-        logged = tf.log(summed)
-        logged = tf.reshape(logged, (n, ))
-    return logged
-
-
-def to_sparse(dense):
-    # Find indices where the tensor is not zero
-    idx = tf.where(tf.not_equal(dense, 0))
-    # Make the sparse tensor
-    # Use tf.shape(a_t, out_type=tf.int64) instead of a_t.get_shape()
-    # if tensor shape is dynamic
-    sparse = tf.SparseTensor(idx, tf.gather_nd(dense, idx), tf.shape(dense, out_type=tf.int64))
-    return sparse
-
-
-def to_dense(s):
-    return tf.sparse.to_dense(s, validate_indices=False)
-
-
-# for reference:
-# def Sinkhorn_step(C, f, epsilon):
-#   g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
-#   f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
-#   return f, g
 def SparseSinkhorn_step(C, f, epsilon):
     translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f, axis=1)
     g = epsilon * sparse_logsumexp(scalar_mul(translated, 1.0/epsilon), 0)
@@ -449,8 +385,6 @@ def sparse_sinkhorn_test():
         return
         '''
 
-
-
         translated = sparse_matrix_dense_broadcasted_vector_add(minus(C), -f_init, axis=1) # TODO or is it axis=0?
 
         p("translated", td(translated))
@@ -470,35 +404,6 @@ def sparse_sinkhorn_test():
         return
 
 
-def Sinkhorn_log_domain(C, n, m, f=None, epsilon=None, niter=10):
-    #raise Exception("please use Sinkhorn() instead")
-    assert epsilon is not None
-    a = tf.ones((n,1))/float(n)
-    b = tf.ones((1,m))/float(m)
-
-    def mina_u(H,epsilon): return -epsilon*tf.log( tf.reduce_sum(a * tf.exp(-H/epsilon),0) )
-    def minb_u(H,epsilon): return -epsilon*tf.log( tf.reduce_sum(b * tf.exp(-H/epsilon),1) )
-
-    def mina(H,epsilon): return mina_u(H-tf.reduce_min(H,0),epsilon) + tf.reduce_min(H,0);
-    def minb(H,epsilon): return minb_u(H-tf.reduce_min(H,1)[:,None],epsilon) + tf.reduce_min(H,1);
-
-    n_t = tf.shape(C)[0]
-
-    if f is None:
-        f = tf.zeros(n_t, np.float32)
-    for i in range(niter):
-        g = mina(C-f[:,None],epsilon)
-        f = minb(C-g[None,:],epsilon)
-        # generate the coupling
-        #P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
-        # check conservation of mass
-        #Err[it] = np.linalg.norm(np.sum(P,0)-b,1)
-    P = a * tf.exp((f[:,None]+g[None,:]-C)/epsilon) * b
-    return P, f, g
-
-
-# TODO evil hardwired constant.
-# TODO correct terminology is unclear.
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
     OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
@@ -516,18 +421,6 @@ def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10)
     return OT, P_temp, P, f, g, C
 
 
-def EmulatedSparseSinkhornLoss(sources, targets, epsilon=0.01, niter=10):
-    C = pdist(sources, targets)
-    sh = C.get_shape()
-    bernoulli = tfp.distributions.Bernoulli(probs=[0.9]) # prob of removal
-    mask = tf.cast(bernoulli.sample(sh), dtype=np.float32)
-    # sample() gives an extra axis for some reason.
-    mask = mask[:, :, 0]
-    C += mask * 1e9
-    OT, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT, P, f, g, C
-
-
 # SinkhornLoss corrected with autocorrelation
 def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     OTxy, Pxy, fxy, gxy, Cxy = SinkhornLoss(sources, targets, epsilon=epsilon, niter=niter)
@@ -537,17 +430,7 @@ def SinkhornDivergence(sources, targets, epsilon=0.01, niter=10):
     #return OTxy, Pxy, fxy, gxy, Cxy
 
 
-# SinkhornLoss corrected with autocorrelation
-def SparseSinkhornDivergence(sources, targets, sparse_indices, epsilon=0.01, niter=10):
-    OTxy, Qxy, Pxy, fxy, gxy, Cxy = SparseSinkhornLoss(sources, targets, epsilon=epsilon, niter=niter, sparse_indices=sparse_indices)
-    #OTxx, Pxx, fxx, gxx, Cxx = SparseSinkhornLoss(sources, sources, epsilon=epsilon, niter=niter)
-    #OTyy, Pyy, fyy, gyy, Cyy = SparseSinkhornLoss(targets, targets, epsilon=epsilon, niter=niter)
-    #return OTxy - 0.5 * (OTxx + OTyy), Pxy, fxy, gxy, Cxy
-    #return OTxy, Pxy, fxy, gxy, Cxy
-    return OTxy, Pxy, fxy, gxy, Cxy
-
-
-def rounding(F, r, c):
+def rounding_linear_domain(F, r, c):
     row_ones = tf.ones(tf.shape(F)[0],tf.float32)
     col_ones = tf.ones(tf.shape(F)[1],tf.float32)
     r_F = tf.math.reduce_sum(F, axis=1)
@@ -571,7 +454,7 @@ def rounding(F, r, c):
     return G
 
 
-def rounding_log(F, r, c):
+def rounding_log_domain(F, r, c):
     row_zeros = tf.zeros(tf.shape(F)[0],tf.float32)
     col_zeros = tf.zeros(tf.shape(F)[1],tf.float32)
     r_F = tf.math.reduce_logsumexp(F, axis=1)
