@@ -73,7 +73,7 @@ class TfTopkSparsifier(Sparsifier):
         for i in range(self.n // self.batch_size):
             indices_np = np.arange(i*self.batch_size, (i+1)*self.batch_size)
             top_indices_np = self.sess.run([self.top_indices], feed_dict={self.pointer_ph: i})
-            top_indices_np = top_indices_np[:,0] + (i*self.batch_isze)
+            top_indices_np = top_indices_np[:,0] + (i*self.batch_size)
             all_indices.append(top_indices_np)
         indices = np.concatenate(all_indices, axis=0)
         return indices
