@@ -56,7 +56,8 @@ def main():
     step_count = 100
     sinkhorn_iters = 10
     sinkhorn_epsilon = 0.1 if use_sparse else 0.01
-    k = 20 # k = n means dense
+    sinkhorn_epsilon = 0.01 # TODO: 0.01 because currently sparse is imitating dense
+    k = n # k = n means dense. TODO currently ignored, sparse imitating dense
     resample_targets = False
     # shrinking domain to avoid logsumexp trick.
     shrinkage = 0.1
@@ -64,8 +65,8 @@ def main():
 
     np.random.seed(2)
     # first two coordinates are linearly transformed in an ad hoc way, rest simply multiplied by 2.
-    start_np = np.random.normal(size=(n, d)).astype(np.float32)
-    start_np *= 2 # 0.05
+    start_np = np.random.uniform(size=(n, d)).astype(np.float32)
+    start_np *= 0.05
     start_np[:, 0] += start_np[:, 1]
     start_np += 2
     target_np = np.random.normal(size=(n, d)).astype(np.float32)

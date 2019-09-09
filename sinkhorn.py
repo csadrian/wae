@@ -175,9 +175,38 @@ def Sinkhorn_nonent(C, f=None, niter=1000):
     return P, f, g
 
 
+def naive_dense_logsumexp(a, axis):
+    return tf.reshape(tf.log(1e-8 + tf.maximum(0.0, tf.reduce_sum(tf.exp(a), axis))), [-1])
+
+# based on https://github.com/tensorflow/tensorflow/blob/r1.14/tensorflow/python/ops/math_ops.py#L2396-L2412
+def smart_dense_logsumexp_reimpl(input_tensor, axis):
+    raw_max = tf.reduce_max(input_tensor, axis=axis, keepdims=True)
+    my_max = tf.stop_gradient(
+        tf.where(
+            tf.is_finite(raw_max), raw_max,
+            tf.zeros_like(raw_max)))
+    result = tf.log(
+        tf.reduce_sum(
+            tf.exp(input_tensor - my_max),
+            axis,
+            keepdims=False))
+    my_max = tf.reshape(my_max, tf.shape(result))
+    result = result + my_max
+    return result
+
+
 def Sinkhorn_step(C, f, epsilon):
-    g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
-    f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
+    logsumexp_mode = "naive"
+    assert logsumexp_mode in ("naive", "builtin", "builtin-reimpl")
+    if logsumexp_mode == "builtin-reimpl":
+        g = epsilon * smart_dense_logsumexp_reimpl((-f - tf.transpose(C)) / epsilon, -1)
+        f = epsilon * smart_dense_logsumexp_reimpl((-g - C) / epsilon, -1)
+    elif logsumexp_mode == "naive":
+        g = epsilon * naive_dense_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
+        f = epsilon * naive_dense_logsumexp((-g - C) / epsilon, -1)
+    elif logsumexp_mode == "builtin":
+        g = epsilon * tf.reduce_logsumexp((-f - tf.transpose(C)) / epsilon, -1)
+        f = epsilon * tf.reduce_logsumexp((-g - C) / epsilon, -1)
     return f, g
 
 
@@ -201,27 +230,22 @@ def sparse_reduce_min(s, axis):
 
 
 def sparse_naive_logsumexp(s, axis):
-    return tf.reshape(tf.log(1e-8+sparse_reduce_sum(sparse_exp(s), axis)), [-1])
+    return tf.reshape(tf.log(sparse_reduce_sum(sparse_exp(s), axis)), [-1])
 
 
 def sparse_logsumexp(s, axis):
-    # no max trick
-    return sparse_naive_logsumexp(s, axis)
-
-    # stupid function has no gradient:
-    # mx = tf.sparse.reduce_max(s, axis)
-
-    # attempt with mean but it did not help:
-    # mx = tf.sparse.reduce_sum(s, axis) / tf.cast(s.dense_shape[axis], tf.float32)
-
     if axis == 0:
         other_axis = 1
     elif axis == 1 or axis == -1:
         other_axis = 0
 
-    mx = 0.0 * tf.ones(s.dense_shape[other_axis], dtype=tf.float32)
-
-    return sparse_naive_logsumexp(sparse_matrix_dense_broadcasted_vector_add(s, -mx, other_axis), axis) + mx
+    raw_max = tf.sparse.reduce_max(s, axis=axis)
+    mx = tf.stop_gradient(
+        tf.where(
+            tf.is_finite(raw_max), raw_max,
+            tf.zeros_like(raw_max)))
+    result = sparse_naive_logsumexp(sparse_matrix_dense_broadcasted_vector_add(s, -mx, axis), axis) + mx
+    return result
 
 
 # TODO numerical stability went out of the window.
@@ -603,7 +627,7 @@ def draw_edges(p1, p2, w, radius, edges=True):
     return img
 
 if __name__ == "__main__":
-    # sparse_sinkhorn_test() ; exit()
+    sparse_sinkhorn_test() ; exit()
     sparse_full_sinkhorn_test() ; exit()
     trunc_test()
     broadcast_test()
