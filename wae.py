@@ -16,6 +16,7 @@ import logging
 import ops
 import utils
 import sinkhorn
+import sparsifiers
 import random
 import neptune
 import PIL
@@ -605,31 +606,22 @@ class WAE(object):
             if ids is not None:
                 ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])]
                 tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
+                self.x_latents_np[ids_to_update] = latents
                 self.nat_pos = (self.nat_pos + self.opts['batch_size']) % self.opts['nat_size']
             else:
                 self.x_latents.assign(latents).eval(session=self.sess)
+                self.x_latents_np = latents
                 self.nat_pos = 0
         return latents
 
-    def sparse_indices_full(self, n, m):
-        import itertools
-        i = [k for k in itertools.product(np.arange(n, dtype=np.int32), repeat=2)]
-        return i
 
-    def sparse_indices_random(self, n, m, k):
-        rnd_x = np.random.choice(n, size=(k,1), replace=True)
-        rnd_y = np.random.choice(m, size=(k,1), replace=True)
-        indices = np.concatenate([rnd_x, rnd_y], axis=1)
-        return indices
-
-    def sparse_indices_factory(self):
-        n = self.opts['train_size']
-        m = self.opts['nat_size']
-        if self.opts['sinkhorn_sparsifier_fn'] == 'random':
-            k = opts['nat_sparse_indices_num']
-            return self.sparse_indices_random(n, m, k)
+    def sparsifier_factory(self, sources_np, targets_np):
+        if self.opts['sinkhorn_sparsifier'] == 'random':
+            return sparsifiers.RandomSparsifier(sources_np, targets_np, self.opts['nat_sparse_indices_num'])
+        elif self.opts['sinkhorn_sparsifier'] == 'full':
+            return sparsifiers.FullSparsifier(sources_np, targets_np)
         else:
-            return self.sparse_indices_full(n, m)
+            assert self.opts['sinkhorn_sparse'] is True, "sinkhorn_sparse is True, but no sparsifier set."
 
     def train(self, data):
         opts = self.opts
@@ -684,7 +676,8 @@ class WAE(object):
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
-          self.nat_sparse_indices_np = self.sparse_indices_factory()
+          self.sparsifier = self.sparsifier_factory(self.x_latents_np, self.nat_targets_np)
+          self.nat_sparse_indices_np = self.sparsifier.indices()
 
           for epoch in range(opts["epoch_num"]):
 
@@ -721,7 +714,8 @@ class WAE(object):
                 self.resample_nat_targets()
 
             #self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
-
+            self.sparsifier.on_epoch_begin()
+            
             for it in range(batches_num):
 
                 if self.opts['nat_resampling'] == 'batch':
@@ -747,12 +741,7 @@ class WAE(object):
                     print("frame")
 
                 #self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
-                """                
-                if epoch < 1:
-                    rec_lambda = 0.0
-                else:
-                    rec_lambda = opts['rec_lambda']
-                """
+
                 # Update encoder and decoder
                 feed_d = {
                     self.sample_points: batch_images,
@@ -808,7 +797,7 @@ class WAE(object):
 
 
                 self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
-
+                self.sparsifier.on_batch_end()
                 # Update learning rate if necessary
 
                 if opts['lr_schedule'] == "plateau":
