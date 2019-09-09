@@ -53,7 +53,7 @@ def main():
     use_sparse = True
     n = 200
     d = 64
-    step_count = 100
+    step_count = 300
     sinkhorn_iters = 10
     sinkhorn_epsilon = 0.1 if use_sparse else 0.01
     sinkhorn_epsilon = 0.01 # TODO: 0.01 because currently sparse is imitating dense
@@ -87,8 +87,7 @@ def main():
         else:
             target = tf.constant(target_np.astype(np.float32))
 
-        sparse_indices_np  = [l for l in itertools.product(np.arange(n, dtype=np.int64), repeat=2)]
-        sparse_indices = tf.constant(sparse_indices_np, dtype=np.int64)
+        sparse_indices = tf.placeholder(np.int64, (None, 2))
 
         # Q are used for debugging.
         print("building sinkhorn ops graph")
@@ -122,47 +121,18 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
-                '''
-                P_s_np, P_d_np = sess.run([sinkhorn.to_dense(P_s), P_d])
-                print("P_d")
-                print(P_d_np[:5, :5])
-                print("P_s")
-                print(P_s_np[:5, :5])
-                C_s_np, C_d_np = sess.run([sinkhorn.to_dense(C_s), C_d])
-                print("C_d")
-                print(C_d_np[:5, :5])
-                print("C_s")
-                print(C_s_np[:5, :5])
-                Q_s_np, Q_d_np = sess.run([sinkhorn.to_dense(Q_s), Q_d])
-                print("Q_d")
-                print(Q_d_np[:5, :5])
-                print("Q_s")
-                print(Q_s_np[:5, :5])
-
-                f_s_np, f_d_np, OT_s_np, OT_d_np = sess.run([f_s, f_d, OT_s, OT_d])
-                print("f_d")
-                print(f_d_np)
-                print("f_s")
-                print(f_s_np)
-                print("OT_d", OT_d_np)
-                print("OT_s", OT_s_np)
-                print("grad OT_d", sess.run(tf.gradients(OT_d, pos)))
-                print("grad OT_s", sess.run(tf.gradients(OT_s, pos)))
-                print("Q_d + C_d", (Q_d_np + C_d_np)[:5, :5])
-                print("Q_s + C_s", (Q_s_np + C_s_np)[:5, :5])
-
-                print("d C", np.linalg.norm(C_d_np - C_s_np))
-                print("d P", np.linalg.norm(P_d_np - P_s_np))
-                print("d Q", np.linalg.norm(Q_d_np - Q_s_np))
-                print("d f", np.linalg.norm(f_d_np - f_s_np))
-                print("d Q_d -C_d-f_d", np.linalg.norm(Q_d_np - (-C_d_np - f_d_np)))
-                print("d Q_s -C_s-f_s", np.linalg.norm(Q_s_np - (-C_s_np - f_s_np)))
-                '''
+                # random subset of product(range(n), range(n)
+                sparse_indices_indices_np = np.random.choice(n * n, n * n // 10, replace=False)
+                sparse_indices_np = np.zeros((len(sparse_indices_indices_np), 2)).astype(np.int64)
+                sparse_indices_np[:, 0] = sparse_indices_indices_np // n
+                sparse_indices_np[:, 1] = sparse_indices_indices_np %  n
 
                 if resample_targets:
-                    _, next_pos_np, target_np = sess.run([train_step, pos, target])
+                    _, next_pos_np, target_np = sess.run([train_step, pos, target],
+                        feed_dict={sparse_indices: sparse_indices_np})
                 else:
-                    _, next_pos_np = sess.run([train_step, pos])
+                    _, next_pos_np = sess.run([train_step, pos],
+                        feed_dict={sparse_indices: sparse_indices_np})
 
                 if do_rematching:
                     matching = optimalMatching(next_pos_np, target_np)
@@ -175,7 +145,10 @@ def main():
                                             VIDEO_SIZE, radius=4, edges=draw_edges)
                 video.write_frame(frame)
 
-                print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",
+                OT_np = sess.run(OT,
+                        feed_dict={sparse_indices: sparse_indices_np})
+
+                print("iter:", indx, "transport:", OT_np, "mean_length_of_matching:",
                     np.mean(np.linalg.norm(next_pos_np - target_np_aligned, axis=1)))
                 print(np.mean(next_pos_np[:, :4], axis=0), "\n", np.cov(next_pos_np[:, :4].T))
 
