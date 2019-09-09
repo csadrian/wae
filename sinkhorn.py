@@ -79,7 +79,6 @@ def SparseSinkhorn_step(C, f, epsilon):
     return f, g
 
 
-# TODO that reduce_mean is some constant multiplier away from the standard value.
 # TODO get rid of P_temp which only served debugging purposes
 def Sinkhorn(C, f=None, epsilon=None, niter=10):
     assert epsilon is not None
@@ -92,7 +91,7 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
     P_temp = -f[:, None] - C
     P = (-f[:, None] - g[None, :] - C) / epsilon
     # P = rounding_log(P, tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
-    OT = tf.reduce_mean(tf.exp(P) * C)
+    OT = tf.reduce_sum(tf.exp(P) * C)
     return OT, P_temp, P, f, g
 
 
@@ -111,7 +110,7 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
     P = P_temp
     P = sparse_matrix_dense_broadcasted_vector_add(P, -g, 0)
     P = scalar_mul(P, 1.0 / epsilon)
-    OT = tf.reduce_mean(tf.exp(P.values) * C.values)
+    OT = tf.reduce_sum(tf.exp(P.values) * C.values)
     return OT, P_temp, P, f, g
 
 
