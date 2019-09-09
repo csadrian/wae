@@ -623,7 +623,7 @@ class WAE(object):
         elif self.opts['sinkhorn_sparsifier'] == 'full':
             return sparsifiers.FullSparsifier(sources_np, targets_np)
         elif self.opts['sinkhorn_sparsifier'] == 'tf_topk':
-            return sparsifiers.TfTopkSparsifier(self.x_latents, self.nat_targets, k=2, sess=self.sess, batch_size=100)
+            return sparsifiers.TfTopkSparsifier(self.x_latents, self.nat_targets, k=5, sess=self.sess, batch_size=100)
         else:
             assert self.opts['sinkhorn_sparse'] is True, "sinkhorn_sparse is True, but no sparsifier set."
 
