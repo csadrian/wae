@@ -611,19 +611,25 @@ class WAE(object):
                 self.nat_pos = 0
         return latents
 
-    def sparse_indices_topk(self, n, m, k=100):
-        #rnd_x = np.random.choice(n, size=(k,1), replace=True)
-        #rnd_y = np.random.choice(m, size=(k,1), replace=True)
+    def sparse_indices_full(self, n, m):
         import itertools
         i = [k for k in itertools.product(np.arange(n, dtype=np.int32), repeat=2)]
-        return i    
-        rnd_x = np.arange(n)
-        rnd_y = np.arange(n)
-        rnd_x[:, None] 
-        
+        return i
+
+    def sparse_indices_random(self, n, m, k):
+        rnd_x = np.random.choice(n, size=(k,1), replace=True)
+        rnd_y = np.random.choice(m, size=(k,1), replace=True)
         indices = np.concatenate([rnd_x, rnd_y], axis=1)
         return indices
-        #return np.array([[0,1], [1,2]] )
+
+    def sparse_indices_factory(self):
+        n = self.opts['train_size']
+        m = self.opts['nat_size']
+        if self.opts['sinkhorn_sparsifier_fn'] == 'random':
+            k = opts['nat_sparse_indices_num']
+            return self.sparse_indices_random(n, m, k)
+        else:
+            return self.sparse_indices_full(n, m)
 
     def train(self, data):
         opts = self.opts
@@ -678,8 +684,7 @@ class WAE(object):
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
-
-          self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
+          self.nat_sparse_indices_np = self.sparse_indices_factory()
 
           for epoch in range(opts["epoch_num"]):
 
