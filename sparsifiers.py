@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import tensorflow as tf
+import sinkhorn
 
 class Sparsifier():
 
@@ -60,22 +61,22 @@ class TfTopkSparsifier(Sparsifier):
         self.create_op()
 
     def create_op(self):
-        #self.indices_ph = tf.placeholder(tf.int64, shape=(self.batch_size,))
         self.pointer_ph = tf.placeholder(tf.int64, shape=())
-        self.bs = tf.constant(self.batch_size, dtype=tf.int64)
-        xs = self.sources[self.pointer_ph*self.bs : (self.pointer_ph+1)*self.bs]
+        xs = tf.slice(self.sources, [self.pointer_ph*self.batch_size, 0], [self.batch_size, self.sources.get_shape().as_list()[1]])
         ys = self.targets
-        v = tf.reduce_sum(tf.square(xs-ys), axis=1)
-        self.top_values, self.top_indices = tf.nn.top_k(-v, k=self.k)
+        d = sinkhorn.pdist(xs, ys)
+        self.top_values, self.top_indices = tf.nn.top_k(-d, k=self.k)
     
     def indices(self):
-        all_indices = []
+        all_indices = []        
         for i in range(self.n // self.batch_size):
             indices_np = np.arange(i*self.batch_size, (i+1)*self.batch_size)
             top_indices_np, = self.sess.run([self.top_indices], feed_dict={self.pointer_ph: i})
             top_indices_np[:, 0] = top_indices_np[:, 0] + i*self.batch_size
+            print("o,", top_indices_np.shape)
             all_indices.append(top_indices_np)
         indices = np.concatenate(all_indices, axis=0)
+        print("iii", indices.shape)
         return indices
 
     def on_batch_end(self):
