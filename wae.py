@@ -125,13 +125,15 @@ class WAE(object):
         opts = self.opts
         # TODO implement options: spherical, etc..
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
-        self.nat_targets = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        #self.nat_targets = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        self.nat_targets = tf.Variable(self.nat_targets_np, dtype=tf.float32, trainable=False)
         self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim'])), dtype=tf.float32, trainable=False)
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
         self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(opts['nat_sparse_indices_num'], 2))
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
+        self.assign(tf.nat_targets, tf.nat_targets_np).eval(session=self.sess)
 
     def add_inputs_placeholders(self):
         opts = self.opts
@@ -736,7 +738,7 @@ class WAE(object):
 
 
                 if True:
-                    (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False, self.nat_targets: self.nat_targets_np})
+                    (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
                     print("frame,", nat_targets_np.shape)
                     frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=4, edges=False)
                     video.write_frame(frame)
@@ -753,7 +755,6 @@ class WAE(object):
                     self.ot_lambda: ot_lambda,
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
-                    self.nat_targets: self.nat_targets_np,
                     self.nat_sparse_indices: self.nat_sparse_indices_np,
                     self.batch_indices_mod: data_ids_mod}
                 print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
