@@ -59,8 +59,6 @@ def main():
     sinkhorn_epsilon = 0.01 # TODO: 0.01 because currently sparse is imitating dense
     k = n # k = n means dense. TODO currently ignored, sparse imitating dense
     resample_targets = False
-    # shrinking domain to avoid logsumexp trick.
-    shrinkage = 0.1
     VIDEO_SIZE = 512
 
     np.random.seed(2)
@@ -72,9 +70,6 @@ def main():
     target_np = np.random.normal(size=(n, d)).astype(np.float32)
 
     assert start_np.shape == target_np.shape == (n, d)
-
-    target_np *= shrinkage
-    start_np *= shrinkage
 
     print(np.mean(target_np[:, :4], axis=0), "\n", np.cov(target_np[:, :4].T))
 
@@ -88,7 +83,7 @@ def main():
     with tf.Session() as sess:
         pos = tf.Variable(start_np.astype(np.float32))
         if resample_targets:
-            target = tf.random.normal((n, d), dtype=np.float32) * shrinkage
+            target = tf.random.normal((n, d), dtype=np.float32)
         else:
             target = tf.constant(target_np.astype(np.float32))
 
@@ -110,7 +105,7 @@ def main():
         # adjusted with autocorrelation terms:
         # OT, P, f, g, C = sinkhorn.SinkhornDivergence(pos, target, epsilon=0.01, niter=10)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
         print("building grad op")
         train_step = optimizer.minimize(OT, var_list=pos)
@@ -177,7 +172,7 @@ def main():
 
                 draw_edges = do_initial_matching or do_rematching
                 frame = sinkhorn.draw_edges(next_pos_np, target_np_aligned,
-                                            VIDEO_SIZE, radius=4 * shrinkage, edges=draw_edges)
+                                            VIDEO_SIZE, radius=4, edges=draw_edges)
                 video.write_frame(frame)
 
                 print("iter:", indx, "transport:", sess.run(OT), "mean_length_of_matching:",
