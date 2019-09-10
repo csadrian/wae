@@ -65,7 +65,8 @@ def main():
     # twoway-topk: top k target point chosen for each moved point, then other way round, union is taken.
     # random: Renyi random interaction, resampled in every iteration
     # random-without-resample: Renyi random interaction, fixed at startup
-    assert sparsifier_kind in ("dense", "topk", "twoway-topk", "random", "random-without-resample")
+    # mishmash: the union of twoway-topk with k/2 and a random with k/2.
+    assert sparsifier_kind in ("dense", "topk", "twoway-topk", "random", "random-without-resample", "mishmash")
 
     k = 50 # for "random" kinds, k * n is the number of sampled interactions
     resample_targets = False
@@ -124,6 +125,10 @@ def main():
             sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=True)
         elif sparsifier_kind == "random-without-resample":
             sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=False)
+        elif sparsifier_kind == "mishmash":
+            twoway_sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, 0, sess, batch_size=min(n, 1000))
+            random_sparsifier = sparsifiers.RandomSparsifier(n, n, k * n // 2, resample=True)
+            sparsifier = sparsifiers.SparsifierCombinator(twoway_sparsifier, random_sparsifier)
         else:
             assert False, "unknown sparsifier kind"
 

@@ -135,7 +135,13 @@ class TfTwoWayTopkSparsifier(Sparsifier):
 
 class SparsifierCombinator(Sparsifier):
     def __init__(self, s1, s2):
-        pass
+        self.s1 = s1
+        self.s2 = s2
+
+    def indices(self):
+        i1 = self.s1.indices()
+        i2 = self.s2.indices()
+        return np.unique(np.concatenate((i1, i2)), axis=0)
 
 
 def sparsifier_test():
