@@ -183,7 +183,7 @@ def main():
     data = DataHandler(opts)
     assert data.num_points >= opts['batch_size'], 'Training set too small'
 
-    if opts['train_size'] is not None:
+    if 'train_size' in opts and opts['train_size'] is not None:
         train_size = opts['train_size']
     else:
         train_size = data.num_points

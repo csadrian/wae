@@ -28,9 +28,11 @@ def generate(opts):
     BATCH_SIZE = 100
 
     checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-20000')
+    meta = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-20000.meta')
 
     net = wae.WAE(opts)
 
+    net.saver = tf.train.import_meta_graph(meta)
     net.saver.restore(net.sess, checkpoint)
 
     # Finally, start generating the samples
