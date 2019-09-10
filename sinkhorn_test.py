@@ -57,7 +57,17 @@ def main():
     step_count = 100
     sinkhorn_iters = 10
     sinkhorn_epsilon = 0.1 if use_sparse else 0.01
-    k = 20
+
+    # sparsifier_kind is overridden by use_sparse
+    sparsifier_kind = "topk"
+    # dense: complete interaction graph. only works with use_sparse=False
+    # topk: top k target point chosen for each moved point
+    # twoway-topk: top k target point chosen for each moved point, then other way round, union is taken.
+    # random: Renyi random interaction, resampled in every iteration
+    # random-without-resample: Renyi random interaction, fixed at startup
+    assert sparsifier_kind in ("dense", "topk", "twoway-topk", "random", "random-without-resample")
+
+    k = 50 # for "random" kinds, k * n is the number of sampled interactions
     resample_targets = False
     VIDEO_SIZE = 512
 
@@ -104,7 +114,18 @@ def main():
         # adjusted with autocorrelation terms:
         # OT, P, f, g, C = sinkhorn.SinkhornDivergence(pos, target, epsilon=0.01, niter=10)
 
-        sparsifier = sparsifiers.TfTopkSparsifier(pos, target, k, sess, batch_size=100)
+        if not use_sparse or sparsifier_kind == "dense":
+            sparsifier = None
+        elif sparsifier_kind == "topk":
+            sparsifier = sparsifiers.TfTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+        elif sparsifier_kind == "twoway-topk":
+            sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+        elif sparsifier_kind == "random":
+            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=True)
+        elif sparsifier_kind == "random-without-resample":
+            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=False)
+        else:
+            assert False, "unknown sparsifier kind"
 
         optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
@@ -123,7 +144,11 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
-                sparse_indices_np = sparsifier.indices()
+                if use_sparse and sparsifier_kind != "dense":
+                    sparse_indices_np = sparsifier.indices()
+                else:
+                    sparse_indices_np = np.zeros((0, 2)).astype(np.int64)
+
                 # TODO !!! needed because sparsifier constructor takes (pos, target)
                 # and SparseSinkhornLoss takes (target, pos).
                 sparse_indices_np = sparse_indices_np[:, ::-1]

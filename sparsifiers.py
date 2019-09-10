@@ -22,7 +22,6 @@ class Sparsifier():
 
 
 class FullSparsifier(Sparsifier):
-
     def __init__(self, sources, targets):
         super().__init__(sources, targets)
         assert self.n == self.m, "Not implemented"
@@ -33,9 +32,11 @@ class FullSparsifier(Sparsifier):
 
 
 class RandomSparsifier(Sparsifier):
-    def __init__(self, sources, targets, num_indices, opts={}):
-        super().__init__(sources, targets)
+    def __init__(self, n, m, num_indices, resample=True):
+        self.n = n
+        self.m = m
         self.num_indices = num_indices
+        self.resample = resample
         self.reinit()
 
     def reinit(self):
@@ -45,6 +46,8 @@ class RandomSparsifier(Sparsifier):
         self._indices[:, 1] = flat_indices // self.n
 
     def indices(self):
+        if self.resample:
+            self.reinit()
         return self._indices
 
     def on_batch_end(self):
@@ -52,12 +55,12 @@ class RandomSparsifier(Sparsifier):
 
 
 class TfTopkSparsifier(Sparsifier):
-
     def __init__(self, sources, targets, k, sess, batch_size=100):
         super().__init__(sources, targets)
         self.k = k
         self.sess = sess
         self.batch_size = batch_size
+        assert self.n % batch_size == 0
         self.create_op()
 
     def create_op(self):
@@ -66,32 +69,72 @@ class TfTopkSparsifier(Sparsifier):
         ys = self.targets
         d = sinkhorn.pdist(xs, ys)
         self.top_values, self.top_indices = tf.nn.top_k(-d, k=self.k)
-        self.top_values_t, self.top_indices_t = tf.nn.top_k(tf.transpose(-d), k=self.k)
 
     def indices(self):
         all_indices = []
         for i in range(self.n // self.batch_size):
             indices_np = np.arange(i*self.batch_size, (i+1)*self.batch_size)
-            top_indices_np, top_indices_t_np = self.sess.run([self.top_indices, self.top_indices_t], feed_dict={self.pointer_ph: i})
+            top_indices_np, = self.sess.run([self.top_indices], feed_dict={self.pointer_ph: i})
             top_indices_np = np.expand_dims(top_indices_np, axis=-1)
-            top_indices_t_np = np.expand_dims(top_indices_t_np, axis=-1)
-
             ran = np.arange(i*self.batch_size, (i+1)*self.batch_size)
             temp = np.zeros_like(top_indices_np) + ran[:,None,None]
-            temp2 = np.zeros_like(top_indices_t_np) + ran[:,None,None]
-
             top_indices_joined = np.concatenate([temp, top_indices_np], axis=2)
             top_indices_joined = np.reshape(top_indices_joined, (-1, 2))
-            top_indices_t_joined = np.concatenate([top_indices_t_np, temp2], axis=2)
-            top_indices_t_joined = np.reshape(top_indices_t_joined, (-1, 2))
-            
             all_indices.append(top_indices_joined)
+        indices = np.concatenate(all_indices, axis=0)
+        return indices
+
+    def on_batch_end(self):
+        pass
+
+
+class TfTwoWayTopkSparsifier(Sparsifier):
+    def __init__(self, sources, targets, k, sess, batch_size=100):
+        super().__init__(sources, targets)
+        self.k = k
+        self.sess = sess
+        self.batch_size = batch_size
+        assert self.n % batch_size == 0 and self.m % batch_size == 0
+        self.create_op()
+
+    def create_op(self):
+        self.pointer_ph = tf.placeholder(tf.int64, shape=())
+        xs = tf.slice(self.sources, [self.pointer_ph*self.batch_size, 0], [self.batch_size, self.sources.get_shape().as_list()[1]])
+        ys = tf.slice(self.targets, [self.pointer_ph*self.batch_size, 0], [self.batch_size, self.targets.get_shape().as_list()[1]])
+        d = sinkhorn.pdist(xs, self.targets)
+        d_t = sinkhorn.pdist(self.sources, ys)
+        self.top_values, self.top_indices = tf.nn.top_k(-d, k=self.k)
+        self.top_values_t, self.top_indices_t = tf.nn.top_k(tf.transpose(-d_t), k=self.k)
+
+    def indices(self):
+        all_indices = []
+        for i in range(self.n // self.batch_size):
+            top_indices_np = self.sess.run(self.top_indices, feed_dict={self.pointer_ph: i})
+            top_indices_np = np.expand_dims(top_indices_np, axis=-1)
+            ran = np.arange(i*self.batch_size, (i+1)*self.batch_size)
+            temp = np.zeros_like(top_indices_np) + ran[:,None,None]
+            top_indices_joined = np.concatenate([temp, top_indices_np], axis=2)
+            top_indices_joined = np.reshape(top_indices_joined, (-1, 2))
+            all_indices.append(top_indices_joined)
+
+        for i in range(self.n // self.batch_size):
+            top_indices_t_np = self.sess.run(self.top_indices_t, feed_dict={self.pointer_ph: i})
+            top_indices_t_np = np.expand_dims(top_indices_t_np, axis=-1)
+            ran = np.arange(i*self.batch_size, (i+1)*self.batch_size)
+            temp_t = np.zeros_like(top_indices_t_np) + ran[:,None,None]
+            top_indices_t_joined = np.concatenate([top_indices_t_np, temp_t], axis=2)
+            top_indices_t_joined = np.reshape(top_indices_t_joined, (-1, 2))
             all_indices.append(top_indices_t_joined)
 
         indices = np.concatenate(all_indices, axis=0)
         return indices
 
     def on_batch_end(self):
+        pass
+
+
+class SparsifierCombinator(Sparsifier):
+    def __init__(self, s1, s2):
         pass
 
 
@@ -110,7 +153,7 @@ def sparsifier_test():
         sess.run(tf.global_variables_initializer())
 
         k = 2
-        tks = TfTopkSparsifier(sources, targets, k, sess, batch_size=2)
+        tks = TfTwoWayTopkSparsifier(sources, targets, k, sess, batch_size=2)
         print(tks.indices())
 
 
