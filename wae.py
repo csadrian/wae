@@ -618,14 +618,17 @@ class WAE(object):
 
 
     def sparsifier_factory(self, sources_np, targets_np):
+
+        if self.opts['sinkhorn_sparsifier'] is None:
+            assert self.opts['sinkhorn_sparse'] is False, "sinkhorn_sparse is True, but no sparsifier set."
+
         if self.opts['sinkhorn_sparsifier'] == 'random':
             return sparsifiers.RandomSparsifier(sources_np, targets_np, self.opts['nat_sparse_indices_num'])
         elif self.opts['sinkhorn_sparsifier'] == 'full':
             return sparsifiers.FullSparsifier(sources_np, targets_np)
         elif self.opts['sinkhorn_sparsifier'] == 'tf_topk':
             return sparsifiers.TfTopkSparsifier(self.x_latents, self.nat_targets, k=5, sess=self.sess, batch_size=100)
-        else:
-            assert self.opts['sinkhorn_sparse'] is True, "sinkhorn_sparse is True, but no sparsifier set."
+
 
     def train(self, data):
         opts = self.opts
@@ -681,7 +684,8 @@ class WAE(object):
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
           self.sparsifier = self.sparsifier_factory(self.x_latents_np, self.nat_targets_np)
-          self.nat_sparse_indices_np = self.sparsifier.indices()
+          if self.sparsifier is not None:
+              self.nat_sparse_indices_np = self.sparsifier.indices()
 
           for epoch in range(opts["epoch_num"]):
 
@@ -718,7 +722,8 @@ class WAE(object):
                 self.resample_nat_targets()
 
             #self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
-            self.sparsifier.on_epoch_begin()
+            if self.sparsifier is not None:
+                self.sparsifier.on_epoch_begin()
             
             for it in range(batches_num):
 
@@ -735,7 +740,6 @@ class WAE(object):
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
-
 
                 if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
@@ -755,8 +759,11 @@ class WAE(object):
                     self.ot_lambda: ot_lambda,
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
-                    self.nat_sparse_indices: self.nat_sparse_indices_np,
                     self.batch_indices_mod: data_ids_mod}
+
+                if self.sparsifier is not None:
+                    feed_d[self.nat_sparse_indices] = self.nat_sparse_indices_np
+
                 print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
 
                 #ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
@@ -764,19 +771,20 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match, loss_ot, P_np, C_np] = self.sess.run(
+                [_, loss, loss_rec, loss_match, loss_ot, P_np] = self.sess.run(
                     [self.ae_opt,
                      self.wae_objective,
                      self.loss_reconstruct,
                      self.penalty,
-                     self.ot_loss, self.P, self.C],
+                     self.ot_loss,
+                     self.P],
                     feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
                     _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('loss_zxz', x=counter, y=zxz_loss_np)
-                print("C_np", C_np)
+                
                 # grads = self.sess.run(self.grad_extra, feed_dict={self.sample_noise: batch_noise, self.is_training: True})
                 # for el in grads:
                 #    print  el
@@ -798,9 +806,10 @@ class WAE(object):
                                    self.lr_decay: decay,
                                    self.is_training: True})
 
-
                 self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
-                self.sparsifier.on_batch_end()
+                if self.sparsifier is not None:
+                    self.sparsifier.on_batch_end()
+
                 # Update learning rate if necessary
 
                 if opts['lr_schedule'] == "plateau":
@@ -965,7 +974,7 @@ class WAE(object):
 
         # Save the final model
         video.close()
-        if epoch > 0:
+        if True:#epoch > 0:
             self.saver.save(self.sess,
                              os.path.join(opts['work_dir'],
                                           'checkpoints',

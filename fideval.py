@@ -27,8 +27,8 @@ def generate(opts):
     NUM_POINTS = 10000
     BATCH_SIZE = 100
 
-    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-20000')
-    meta = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-20000.meta')
+    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825')
+    meta = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825.meta')
 
     net = wae.WAE(opts)
 

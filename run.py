@@ -187,6 +187,7 @@ def main():
         train_size = opts['train_size']
     else:
         train_size = data.num_points
+    print("Train size:", train_size)
 
     if "NEPTUNE_API_TOKEN" in os.environ:
         neptune.init(project_qualified_name="csadrian/global-sinkhorn")
