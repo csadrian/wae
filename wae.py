@@ -619,15 +619,26 @@ class WAE(object):
 
     def sparsifier_factory(self, sources_np, targets_np):
 
-        if self.opts['sinkhorn_sparsifier'] is None:
-            assert self.opts['sinkhorn_sparse'] is False, "sinkhorn_sparse is True, but no sparsifier set."
+        use_sparse = self.opts['sinkhorn_sparse']
+        sparsifier_kind = self.opts['sinkhorn_sparsifier']
+        if not use_sparse or sparsifier_kind == "dense":
+            sparsifier = None
+        elif sparsifier_kind == "topk":
+            sparsifier = sparsifiers.TfTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+        elif sparsifier_kind == "twoway-topk":
+            sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+        elif sparsifier_kind == "random":
+            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=True)
+        elif sparsifier_kind == "random-without-resample":
+            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=False)
+        elif sparsifier_kind == "mishmash":
+            twoway_sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, 0, sess, batch_size=min(n, 1000))
+            random_sparsifier = sparsifiers.RandomSparsifier(n, n, k * n // 2, resample=True)
+            sparsifier = sparsifiers.SparsifierCombinator(twoway_sparsifier, random_sparsifier)
+        else:
+            assert False, "unknown sparsifier kind"
 
-        if self.opts['sinkhorn_sparsifier'] == 'random':
-            return sparsifiers.RandomSparsifier(sources_np, targets_np, self.opts['nat_sparse_indices_num'])
-        elif self.opts['sinkhorn_sparsifier'] == 'full':
-            return sparsifiers.FullSparsifier(sources_np, targets_np)
-        elif self.opts['sinkhorn_sparsifier'] == 'tf_topk':
-            return sparsifiers.TfTopkSparsifier(self.x_latents, self.nat_targets, k=5, sess=self.sess, batch_size=100)
+        return sparsifier
 
 
     def train(self, data):
