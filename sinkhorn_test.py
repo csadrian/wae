@@ -7,6 +7,7 @@ from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 # note: conditionally imports networkx
 
 import sinkhorn
+import sparsifiers
 
 
 def pairwiseSquaredDistances(clients, servers):
@@ -53,11 +54,10 @@ def main():
     use_sparse = True
     n = 200
     d = 64
-    step_count = 300
+    step_count = 100
     sinkhorn_iters = 10
     sinkhorn_epsilon = 0.1 if use_sparse else 0.01
-    sinkhorn_epsilon = 0.01 # TODO: 0.01 because currently sparse is imitating dense
-    k = n # k = n means dense. TODO currently ignored, sparse imitating dense
+    k = 20
     resample_targets = False
     VIDEO_SIZE = 512
 
@@ -104,6 +104,8 @@ def main():
         # adjusted with autocorrelation terms:
         # OT, P, f, g, C = sinkhorn.SinkhornDivergence(pos, target, epsilon=0.01, niter=10)
 
+        sparsifier = sparsifiers.TfTopkSparsifier(pos, target, k, sess, batch_size=100)
+
         optimizer = tf.train.AdamOptimizer(learning_rate=0.1)
 
         print("building grad op")
@@ -121,11 +123,10 @@ def main():
 
         with FFMPEG_VideoWriter('out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
             for indx in range(step_count):
-                # random subset of product(range(n), range(n)
-                sparse_indices_indices_np = np.random.choice(n * n, n * n // 10, replace=False)
-                sparse_indices_np = np.zeros((len(sparse_indices_indices_np), 2)).astype(np.int64)
-                sparse_indices_np[:, 0] = sparse_indices_indices_np // n
-                sparse_indices_np[:, 1] = sparse_indices_indices_np %  n
+                sparse_indices_np = sparsifier.indices()
+                # TODO !!! needed because sparsifier constructor takes (pos, target)
+                # and SparseSinkhornLoss takes (target, pos).
+                sparse_indices_np = sparse_indices_np[:, ::-1]
 
                 if resample_targets:
                     _, next_pos_np, target_np = sess.run([train_step, pos, target],
