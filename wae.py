@@ -129,7 +129,7 @@ class WAE(object):
         self.nat_targets = tf.Variable(self.nat_targets_np, dtype=tf.float32, trainable=False)
         self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim'])), dtype=tf.float32, trainable=False)
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
-        self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(opts['nat_sparse_indices_num'], 2))
+        self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(None, 2)) #opts['nat_sparse_indices_num']
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
@@ -620,8 +620,8 @@ class WAE(object):
     def sparsifier_factory(self, sources, targets):
         use_sparse = self.opts['sinkhorn_sparse']
         sparsifier_kind = self.opts['sinkhorn_sparsifier']
-        k = 10
-        batch_size = 1000
+        k = 3
+        batch_size = 200
         sess = self.sess
         n = sources.get_shape().as_list()[0]
         m = targets.get_shape().as_list()[0]
