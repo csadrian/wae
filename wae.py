@@ -617,23 +617,27 @@ class WAE(object):
         return latents
 
 
-    def sparsifier_factory(self, sources_np, targets_np):
-
+    def sparsifier_factory(self, sources, targets):
         use_sparse = self.opts['sinkhorn_sparse']
         sparsifier_kind = self.opts['sinkhorn_sparsifier']
+        k = 10
+        batch_size = 1000
+        sess = self.sess
+        n = sources.get_shape().as_list()[0]
+        m = targets.get_shape().as_list()[0]
         if not use_sparse or sparsifier_kind == "dense":
             sparsifier = None
         elif sparsifier_kind == "topk":
-            sparsifier = sparsifiers.TfTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+            sparsifier = sparsifiers.TfTopkSparsifier(sources, targets, k, sess, batch_size=batch_size)
         elif sparsifier_kind == "twoway-topk":
-            sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, k, sess, batch_size=min(n, 1000))
+            sparsifier = sparsifiers.TfTwoWayTopkSparsifier(sources, targets, k, sess, batch_size=batch_size)
         elif sparsifier_kind == "random":
-            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=True)
+            sparsifier = sparsifiers.RandomSparsifier(n, m, k * n, resample=True)
         elif sparsifier_kind == "random-without-resample":
-            sparsifier = sparsifiers.RandomSparsifier(n, n, k * n, resample=False)
+            sparsifier = sparsifiers.RandomSparsifier(n, m, k * n, resample=False)
         elif sparsifier_kind == "mishmash":
-            twoway_sparsifier = sparsifiers.TfTwoWayTopkSparsifier(pos, target, 0, sess, batch_size=min(n, 1000))
-            random_sparsifier = sparsifiers.RandomSparsifier(n, n, k * n // 2, resample=True)
+            twoway_sparsifier = sparsifiers.TfTwoWayTopkSparsifier(sources, targets, 0, sess, batch_size=batch_size)
+            random_sparsifier = sparsifiers.RandomSparsifier(n, m, k * n // 2, resample=True)
             sparsifier = sparsifiers.SparsifierCombinator(twoway_sparsifier, random_sparsifier)
         else:
             assert False, "unknown sparsifier kind"
@@ -694,7 +698,7 @@ class WAE(object):
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
-          self.sparsifier = self.sparsifier_factory(self.x_latents_np, self.nat_targets_np)
+          self.sparsifier = self.sparsifier_factory(self.x_latents, self.nat_targets)
           if self.sparsifier is not None:
               self.nat_sparse_indices_np = self.sparsifier.indices()
 
