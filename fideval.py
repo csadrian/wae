@@ -65,33 +65,38 @@ def generate(opts):
     """
 
 
-# Paths
-pic_path = os.path.join('./out/c/', 'checkpoints', 'dummy.samples%d.npy' % (NUM_POINTS))
-image_path = 'results_celeba/generated' # set path to some generated images
-stats_path = 'fid_stats_celeba.npz' # training set statistics
-inception_path = fid.check_or_download_inception(None) # download inception network
+def main():
+    # Paths
+    pic_path = os.path.join('./out/c/', 'checkpoints', 'dummy.samples%d.npy' % (NUM_POINTS))
+    image_path = 'results_celeba/generated' # set path to some generated images
+    stats_path = 'fid_stats_celeba.npz' # training set statistics
+    inception_path = fid.check_or_download_inception(None) # download inception network
 
-# load precalculated training set statistics
-f = np.load(stats_path)
-mu_real, sigma_real = f['mu'][:], f['sigma'][:]
-f.close()
+    # load precalculated training set statistics
+    f = np.load(stats_path)
+    mu_real, sigma_real = f['mu'][:], f['sigma'][:]
+    f.close()
 
-#image_list = glob.glob(os.path.join(image_path, '*.png'))
-#images = np.array([imread(str(fn)).astype(np.float32) for fn in image_list])
-images = np.load(pic_path)
+    #image_list = glob.glob(os.path.join(image_path, '*.png'))
+    #images = np.array([imread(str(fn)).astype(np.float32) for fn in image_list])
+    images = np.load(pic_path)
 
-images_t = images / 2.0 + 0.5
-images_t = 255.0 * images_t
+    images_t = images / 2.0 + 0.5
+    images_t = 255.0 * images_t
 
-from PIL import Image
-img = Image.fromarray(np.uint8(images_t[0]), 'RGB')
-img.save('my.png')
+    from PIL import Image
+    img = Image.fromarray(np.uint8(images_t[0]), 'RGB')
+    img.save('my.png')
 
 
-fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-    mu_gen, sigma_gen = fid.calculate_activation_statistics(images, sess)
+    fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        mu_gen, sigma_gen = fid.calculate_activation_statistics(images, sess)
 
-fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
-print("FID: %s" % fid_value)
+    fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
+    print("FID: %s" % fid_value)
+
+
+if __name__ == "__main__":
+    main()
