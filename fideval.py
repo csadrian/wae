@@ -20,12 +20,14 @@ import fid
 import glob
 from scipy.misc import imread
 
+MAX_GD_STEPS = 200
+LOSS_EVERY_STEPS = 50
+DEBUG = False
+NUM_POINTS = 10000
+BATCH_SIZE = 100
+
+
 def generate(opts):
-    MAX_GD_STEPS = 200
-    LOSS_EVERY_STEPS = 50
-    DEBUG = False
-    NUM_POINTS = 10000
-    BATCH_SIZE = 100
 
     checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825')
     meta = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825.meta')
@@ -39,29 +41,32 @@ def generate(opts):
 
     res_samples = []
 
-    for img_index in range(10):
+    for img_index in range(NUMPOINTS//BATCH_SIZE):
         pics = net.sess.run(net.decoded,
             feed_dict={
-                net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
+                #net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
+                net.sample_noise: net.sample_pz(100),
                 net.is_training: False
             })
 
         res_samples.append(pics)
 
-    samples = np.array(res_samples)
-    samples = np.vstack(samples)
+    samples = np.concatenate(res_samples, axis=0)
     pic_path = os.path.join(opts['work_dir'], 'checkpoints', 'dummy.samples%d' % (NUM_POINTS))
     np.save(pic_path, samples)
+    """
     for img_index, sample in enumerate(samples):
         #sample = cv2.cvtColor(sample, cv2.COLOR_GRAY2RGB)
+        sample = cv2.cvtColor(sample, cv2.COLOR_RGB2BGR)
         sample = sample / 2 + 0.5
         print(np.shape(sample))
         print(np.min(sample), np.max(sample))
         cv2.imwrite("results_celeba/generated/generated%03d.png" % img_index, sample * 255)
+    """
 
 
-"""
 # Paths
+pic_path = os.path.join('./out/c/', 'checkpoints', 'dummy.samples%d.npy' % (NUM_POINTS))
 image_path = 'results_celeba/generated' # set path to some generated images
 stats_path = 'fid_stats_celeba.npz' # training set statistics
 inception_path = fid.check_or_download_inception(None) # download inception network
@@ -71,8 +76,17 @@ f = np.load(stats_path)
 mu_real, sigma_real = f['mu'][:], f['sigma'][:]
 f.close()
 
-image_list = glob.glob(os.path.join(image_path, '*.png'))
-images = np.array([imread(str(fn)).astype(np.float32) for fn in image_list])
+#image_list = glob.glob(os.path.join(image_path, '*.png'))
+#images = np.array([imread(str(fn)).astype(np.float32) for fn in image_list])
+images = np.load(pic_path)
+
+images_t = images / 2.0 + 0.5
+images_t = 255.0 * images_t
+
+from PIL import Image
+img = Image.fromarray(np.uint8(images_t[0]), 'RGB')
+img.save('my.png')
+
 
 fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
 with tf.Session() as sess:
@@ -81,4 +95,3 @@ with tf.Session() as sess:
 
 fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
 print("FID: %s" % fid_value)
-"""
