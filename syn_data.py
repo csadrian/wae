@@ -13,12 +13,15 @@ import csv
 
 #import clocks
 
+"""
 if K.image_dim_ordering() == 'th':
     feature_axis = 1
 elif K.image_dim_ordering() == 'tf':
     feature_axis = 3
 else:
     assert False, "Unknown dim ordering"
+"""
+feature_axis = 3
 
 
 def plotImages(data, n_x, n_y, name, text=None):
