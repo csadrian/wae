@@ -292,6 +292,8 @@ class DataHandler(object):
 
     def _load_syn_constant_uniform(self, opts):
 
+        train_size = opts['train_size']
+        test_size = 100
 
         ds = syn_data.Dataset_syn_constant_uniform((28, 28))
         x = ds.generate_samples(train_size + test_size)
