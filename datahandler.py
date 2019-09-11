@@ -289,8 +289,11 @@ class DataHandler(object):
 
         ds = syn_data.Dataset_syn_constant_uniform((28, 28))
         x = ds.generate_samples(opts['train_size'])
+        test_size = 10000
+
         self.data_shape = (28, 28, 1)
-        self.data = x
+        self.data = x[:-test_size]
+        self.test_data = x[-test_size:]
         self.num_points = len(x)
 
 
@@ -298,8 +301,10 @@ class DataHandler(object):
 
         ds = syn_data.Dataset_syn_constant_uniform((28, 28))
         x = ds.generate_samples(opts['train_size'])
+
         self.data_shape = (28, 28, 1)
-        self.data = x
+        self.data = x[:-test_size]
+        self.test_data = x[-test_size:]
         self.num_points = len(x)
 
 
