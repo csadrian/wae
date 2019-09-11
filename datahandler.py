@@ -19,6 +19,9 @@ from PIL import Image
 import sys
 import syn_data
 
+import synth_data
+
+
 datashapes = {}
 datashapes['syn_constant_uniform'] = [28, 28, 1]
 datashapes['syn_2_constant_uniform'] = [28, 28, 1]
@@ -28,6 +31,7 @@ datashapes['cifar10'] = [32, 32, 3]
 datashapes['celebA'] = [64, 64, 3]
 datashapes['grassli'] = [64, 64, 3]
 datashapes['dsprites'] = [64, 64, 1]
+datashapes['checkers'] = [28, 28, 1]
 
 def _data_dir(opts):
     if opts['data_dir'].startswith("/"):
@@ -262,7 +266,8 @@ class DataHandler(object):
             self._load_syn_constant_uniform(opts)
         elif opts['dataset'] == 'syn_2_constant_uniform':
             self._load_syn_2_constant_uniform(opts)
-
+        elif opts['dataset'] == 'checkers':
+            self._load_checkers(opts)
         else:
             raise ValueError('Unknown %s' % opts['dataset'])
 
@@ -676,6 +681,27 @@ class DataHandler(object):
 
         self.data_shape = (64, 64, 3)
         test_size = 5000
+
+        self.data = Data(opts, X[:-test_size])
+        self.test_data = Data(opts, X[-test_size:])
+        self.num_points = len(self.data)
+
+        logging.debug('Loading Done.')
+
+    def _load_checkers(self, opts):
+        """Renyi synthetic dataset
+
+        """
+        logging.debug('Creating checkers')
+
+        seed = 123
+        np.random.seed(seed)
+
+        self.data_shape = (28, 28, 1)
+        train_size = 10000
+        test_size = 10000
+        X = synth_data.checkers_sampler_n(train_size + test_size, 4, 4)
+        X = np.expand_dims(X, axis=-1)
 
         self.data = Data(opts, X[:-test_size])
         self.test_data = Data(opts, X[-test_size:])

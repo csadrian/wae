@@ -102,6 +102,8 @@ def main():
         opts = configs.config_syn_constant_uniform
     elif FLAGS.exp == 'syn_2_constant_uniform':
         opts = configs.config_syn_2_constant_uniform
+    elif FLAGS.exp == 'checkers':
+        opts = configs.config_checkers
     else:
         assert False, 'Unknown experiment configuration'
 

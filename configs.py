@@ -267,3 +267,8 @@ config_grassli_small['e_num_layers'] = 2
 config_grassli_small['e_num_filters'] = 64
 config_grassli_small['print_every'] = 50
 config_grassli_small['lr_schedule'] = 'plateau'
+
+config_checkers = copy.deepcopy(config_mnist)
+config_checkers['dataset'] = 'checkers'
+config_checkers['work_dir'] = 'results_checkers'
+config_checkers['data_dir'] = 'checkers'
