@@ -20,7 +20,7 @@ import sys
 
 datashapes = {}
 datashapes['syn_constant_uniform'] = [28, 28, 1]
-datashapes['syn_2-constant_uniform'] = [28, 28, 1]
+datashapes['syn_2_constant_uniform'] = [28, 28, 1]
 datashapes['mnist'] = [28, 28, 1]
 datashapes['mnist_ord'] = [28, 28, 1]
 datashapes['cifar10'] = [32, 32, 3]
@@ -259,7 +259,7 @@ class DataHandler(object):
             self._load_grassli(opts)
         elif opts['dataset'] == 'syn_constant_uniform':
             self._load_syn_constant_uniform(opts)
-        elif opts['dataset'] == 'syn_2-constant_uniform':
+        elif opts['dataset'] == 'syn_2_constant_uniform':
             self._load_syn_2_constant_uniform(opts)
 
         else:
