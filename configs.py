@@ -110,15 +110,16 @@ config_mnist_ord['dataset'] = 'mnist_ord'
 config_mnist_ord['e_num_filters'] = 256
 config_mnist_ord['g_num_filters'] = 256
 
-config_syn_cu = copy.deepcopy(config_mnist)
-config_syn_cu['dataset'] = 'syn_constant_uniform'
-config_syn_cu['e_num_filters'] = 256
-config_syn_cu['g_num_filters'] = 256
+config_syn_constant_uniform = copy.deepcopy(config_mnist)
+config_syn_constant_uniform['dataset'] = 'syn_constant_uniform'
+config_syn_constant_uniform['e_num_filters'] = 256
+config_syn_constant_uniform['g_num_filters'] = 256
 
-config_syn_2cu = copy.deepcopy(config_mnist)
-config_syn_2cu['dataset'] = 'syn_2-constant_uniform'
-config_syn_2cu['e_num_filters'] = 256
-config_syn_2cu['g_num_filters'] = 256
+
+config_syn_2_constant_uniform = copy.deepcopy(config_mnist)
+config_syn_2_constant_uniform['dataset'] = 'syn_2-constant_uniform'
+config_syn_2_constant_uniform['e_num_filters'] = 256
+config_syn_2_constant_uniform['g_num_filters'] = 256
 
 # Toy MNIST experiment
 config_mnist_small = copy.deepcopy(config_mnist)

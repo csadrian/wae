@@ -98,6 +98,10 @@ def main():
         opts = configs.config_grassli
     elif FLAGS.exp == 'grassli_small':
         opts = configs.config_grassli_small
+    elif FLAGS.exp == 'syn_constant_uniform':
+        opts = configs.config_syn_constant_uniform
+    elif FLAGS.exp == 'syn_2_constant_uniform':
+        opts = configs.config_syn_2_constant_uniform
     else:
         assert False, 'Unknown experiment configuration'
 
