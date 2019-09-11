@@ -58,6 +58,7 @@ parser.add_argument("--checkpoint",
 
 parser.add_argument('--sinkhorn_sparse', dest='sinkhorn_sparse', type=str2bool, default=False, help='Whether Sinkhorn is run on a sparsified cost matrix')
 parser.add_argument('--sinkhorn_sparsifier', dest='sinkhorn_sparsifier', type=str, default=None, help='Sinkhorn sparsifier fn')
+parser.add_argument('--sparsifier_freq', dest='sparsifier_freq', type=int, default=None, help='Recalculate sparsified indices on every nth batch.')
 parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, default=0.01, help='The epsilon for entropy regularized Sinkhorn')
 parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
 parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
@@ -142,10 +143,10 @@ def main():
         opts['nat_sparse_indices_num'] = FLAGS.nat_sparse_indices_num
 
 
-    if FLAGS.sinkhorn_sparse is not None:
-        opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
-    if FLAGS.sinkhorn_sparsifier is not None:
-        opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
+    opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
+    opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
+    opts['sparsifier_freq'] = FLAGS.sparsifier_freq
+
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
     if FLAGS.sinkhorn_epsilon is not None:

@@ -699,9 +699,7 @@ class WAE(object):
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
           self.sparsifier = self.sparsifier_factory(self.x_latents, self.nat_targets)
-          if self.sparsifier is not None:
-              self.nat_sparse_indices_np = self.sparsifier.indices()
-
+          
           for epoch in range(opts["epoch_num"]):
 
             # Update learning rate if necessary
@@ -763,8 +761,6 @@ class WAE(object):
                     video.write_frame(frame)
                     print("frame")
 
-                #self.nat_sparse_indices_np = self.sparse_indices_topk(opts['train_size'], opts['nat_size'], k=opts['nat_sparse_indices_num'])
-
                 # Update encoder and decoder
                 feed_d = {
                     self.sample_points: batch_images,
@@ -777,6 +773,8 @@ class WAE(object):
                     self.batch_indices_mod: data_ids_mod}
 
                 if self.sparsifier is not None:
+                    if (self.opts['sparsifier_freq'] is None) or (it % self.opts['sparsifier_freq'] == 0):
+                        self.nat_sparse_indices_np = self.sparsifier.indices()
                     feed_d[self.nat_sparse_indices] = self.nat_sparse_indices_np
 
                 print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
