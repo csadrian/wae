@@ -40,11 +40,15 @@ class RandomSparsifier(Sparsifier):
         self.reinit()
 
     def reinit(self):
+        rnd_x = np.random.choice(self.n, size=(self.num_indices,1), replace=True)
+        rnd_y = np.random.choice(self.m, size=(self.num_indices,1), replace=True)
+        self._indices = np.concatenate([rnd_x, rnd_y], axis=1)
+        """
         flat_indices = np.random.choice(self.n * self.m, self.num_indices, replace=False)
         self._indices = np.zeros((self.num_indices, 2)).astype(np.int64)
         self._indices[:, 0] = flat_indices % self.n
         self._indices[:, 1] = flat_indices // self.n
-
+        """
     def indices(self):
         if self.resample:
             self.reinit()
