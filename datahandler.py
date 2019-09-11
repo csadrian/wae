@@ -287,9 +287,9 @@ class DataHandler(object):
 
     def _load_syn_constant_uniform(self, opts):
 
+
         ds = syn_data.Dataset_syn_constant_uniform((28, 28))
-        x = ds.generate_samples(opts['train_size'])
-        test_size = 100
+        x = ds.generate_samples(train_size + test_size)
 
         self.data_shape = (28, 28, 1)
         self.data = x[:-test_size]
@@ -299,9 +299,11 @@ class DataHandler(object):
 
     def _load_syn_2_constant_uniform(self, opts):
 
-        ds = syn_data.Dataset_syn_constant_uniform((28, 28))
-        x = ds.generate_samples(opts['train_size'])
+        train_size = opts['train_size']
         test_size = 100
+
+        ds = syn_data.Dataset_syn_constant_uniform((28, 28))
+        x = ds.generate_samples(train_size + test_size)
 
         self.data_shape = (28, 28, 1)
         self.data = x[:-test_size]
