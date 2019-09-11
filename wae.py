@@ -982,7 +982,7 @@ class WAE(object):
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
-                        neptune.send_image('transport_plot', transport_plot)
+                        #neptune.send_image('transport_plot', transport_plot)
                         neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
