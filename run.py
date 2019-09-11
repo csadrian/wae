@@ -9,6 +9,7 @@ from datahandler import DataHandler
 import utils
 import datetime
 import fideval
+import picture_plot
 
 import neptune
 
@@ -223,6 +224,9 @@ def main():
 
     elif opts['mode'] == 'generate':
         fideval.generate(opts)
+
+    elif opts['mode'] == 'draw':
+        picture_plot.createimgs(opts)
 
     if "NEPTUNE_API_TOKEN" in os.environ:
         exp.stop()

@@ -3,10 +3,11 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from PIL import Image
-from scipy.stats import norm
+from interpolatingfuncs import lerp_gaussian
 import wae
 
-
+import os
+from datahandler import DataHandler
 
 
 '''
@@ -18,36 +19,33 @@ zs = np.reshape(zs, (n, 2, -1))
 sample_gen = net.sess.run(net.decoded, feed_dict={net.sample_noise: grid, net.is_training: False})
 '''
 
+# test plot with randomly generated numbers
+"""
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
 images = x_train[:100]
 images = np.expand_dims(images, axis=3)
 
 pos = np.random.rand(100,2)
+"""
 
-def picsatpos(images, pos):
-
+# scatter images at specific positions
+def scatterpics(images, pos):
     inum = len(images)
     
     def getImage(i, zoom=0.5):
         return OffsetImage(images[i][:,:,0], zoom=zoom)
-    '''
-    def getImage(i, zoom=0.5):
-        return OffsetImage(images[i], zoom=zoom)
-    '''
+
     fig, ax = plt.subplots(subplot_kw = {'aspect' : 'equal'})
 
     for i in range(inum):
         ab = AnnotationBbox(getImage(i), (pos[i][0], pos[i][1]), frameon=False)
         ax.add_artist(ab)
 
-    #plt.xlim(-2,2)
-    #plt.ylim(-2,2)
-
+    plt.xlim(-2,2)
+    plt.ylim(-2,2)
     plt.savefig("latentpic.png", dpi = 1000)
 
-
-picsatpos(images, pos)
 
 def plotImages(data, n_x, n_y, name, text=None):
     (height, width, channel) = data.shape[1:]
@@ -75,71 +73,7 @@ def plotImages(data, n_x, n_y, name, text=None):
         img.text(10, 10, text)
     img.save(fileName)
 
-plotImages(images, 10, 10, 'latentgrid')
-
-'''
-checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-100')
-
-    net = wae.WAE(opts)
-    net.saver.restore(net.sess, checkpoint)
-
-    data = DataHandler(opts)
-    data._load_mnist(opts)
-
-    images = data.data[:1000]
-
-    pos = net.enc_mean
-
-    sess = tf.Session()
-    with sess.as_default():
-        pos = pos.eval()
-'''
-
-def lerp(val, low, high):
-    """Linear interpolation"""
-    return low + (high - low) * val
-
-def lerp_gaussian(val, low, high):
-    """Linear interpolation with gaussian CDF"""
-    low_gau = norm.cdf(low)
-    high_gau = norm.cdf(high)
-    lerped_gau = lerp(val, low_gau, high_gau)
-    return norm.ppf(lerped_gau)
-
-def slerp(val, low, high):
-    """Spherical interpolation. val has a range of 0 to 1."""
-    if val <= 0:
-        return low
-    elif val >= 1:
-        return high
-    elif np.allclose(low, high):
-        return low
-    omega = np.arccos(np.dot(low/np.linalg.norm(low), high/np.linalg.norm(high)))
-    so = np.sin(omega)
-    return np.sin((1.0-val)*omega) / so * low + np.sin(val*omega)/so * high
-
-def slerp_gaussian(val, low, high):
-    """Spherical interpolation with gaussian CDF (generally not useful)"""
-    offset = norm.cdf(np.zeros_like(low))  # offset is just [0.5, 0.5, ...]
-    low_gau_shifted = norm.cdf(low) - offset
-    high_gau_shifted = norm.cdf(high) - offset
-    circle_lerped_gau = slerp(val, low_gau_shifted, high_gau_shifted)
-    epsilon = 0.001
-    clipped_sum = np.clip(circle_lerped_gau + offset, epsilon, 1.0 - epsilon)
-    result = norm.ppf(clipped_sum)
-    return result
-
-def get_interpfn(spherical, gaussian):
-    """Returns an interpolation function"""
-    if spherical and gaussian:
-        return slerp_gaussian
-    elif spherical:
-        return slerp
-    elif gaussian:
-        return lerp_gaussian
-    else:
-        return lerp
-
+# interpolate between points
 def interpolate(lows, highs):
     assert lows.shape == highs.shape
     n, d = lows.shape
@@ -152,6 +86,27 @@ def interpolate(lows, highs):
     grid = np.reshape(grid, (n*m,d))   
     return grid
 
+
+# My attemt at integrating it to the code
+
+def createimgs(opts):
+    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-50')
+
+    net = wae.WAE(opts)
+    net.saver.restore(net.sess, checkpoint)
+
+    n = 50
+
+    data = DataHandler(opts)
+    images = data.data[:n]
+
+    pos = net.sample_pz(n)
+    
+    pos = pos[:,:2]
+
+    scatterpics(images, pos)
+
+"""
 n = 2
 m = 5
 
@@ -161,3 +116,4 @@ highs = zs[:,1,:]
 print("original", zs)
 res = interpolate(lows, highs)
 print("interpolated", res.shape, res)
+"""
