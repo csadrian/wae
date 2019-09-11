@@ -64,7 +64,7 @@ parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default
 parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
 parser.add_argument('--nat_size', dest='nat_size', type=int, default=None, help='NAT size')
 parser.add_argument('--nat_resampling', dest='nat_resampling', type=str, default=None, help='NAT resampling mode, can be: epoch, batch or None')
-parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=1.0, help='Lambda for NAT OT loss')
+parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=0.0, help='Lambda for NAT OT loss')
 parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, help='Lambda for reconstruction loss')
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
 parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
