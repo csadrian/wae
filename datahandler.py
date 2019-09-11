@@ -19,6 +19,8 @@ from PIL import Image
 import sys
 
 datashapes = {}
+datashapes['syn_constant_uniform'] = [28, 28, 1]
+datashapes['syn_2-constant_uniform'] = [28, 28, 1]
 datashapes['mnist'] = [28, 28, 1]
 datashapes['mnist_ord'] = [28, 28, 1]
 datashapes['cifar10'] = [32, 32, 3]
@@ -255,6 +257,11 @@ class DataHandler(object):
             self._load_celebA(opts)
         elif opts['dataset'] == 'grassli':
             self._load_grassli(opts)
+        elif opts['dataset'] == 'syn_constant_uniform':
+            self._load_syn_constant_uniform(opts)
+        elif opts['dataset'] == 'syn_2-constant_uniform':
+            self._load_syn_2_constant_uniform(opts)
+
         else:
             raise ValueError('Unknown %s' % opts['dataset'])
 
@@ -275,6 +282,24 @@ class DataHandler(object):
                 self.data.X = (self.data.X - 0.5) * 2.
                 self.test_data.X = (self.test_data.X - 0.5) * 2.
             # Else we will normalyze while reading from disk
+
+
+    def _load_syn_constant_uniform(self, opts):
+
+        ds = Dataset_syn_constant_uniform((28, 28))
+        x = ds.generate_samples(opts['train_size'])
+        self.data_shape = (28, 28, 1)
+        self.data = x
+        self.num_points = len(x)
+
+
+    def _load_syn_2_constant_uniform(self, opts):
+
+        ds = Dataset_syn_constant_uniform((28, 28))
+        x = ds.generate_samples(opts['train_size'])
+        self.data_shape = (28, 28, 1)
+        self.data = x
+        self.num_points = len(x)
 
 
     def _load_mog(self, opts):
