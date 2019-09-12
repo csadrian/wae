@@ -89,6 +89,8 @@ def load(dataset, shape=None, color=True):
         return Dataset_syn_gradient(shape)
     elif dataset == "syn-constant-uniform":
         return Dataset_syn_constant_uniform(shape)
+    elif dataset == "syn-2-constant-uniform":
+        return Dataset_syn_2_constant_uniform(shape)
     elif dataset == "syn-constant-normal":
         return Dataset_syn_constant_normal(shape)
     elif dataset.startswith("syn-clocks-hand"):
@@ -548,6 +550,30 @@ class Dataset_syn_constant_uniform(Dataset_syn_infinite):
         sorter = np.argsort(params[:,0])
         invert_sorter = np.argsort(sorter)
         return true_params[invert_sorter]
+
+class Dataset_syn_2_constant_uniform(Dataset_syn_infinite):
+    def __init__(self, shape):
+        super(Dataset_syn_constant_uniform, self).__init__("syn-2-constant-uniform", shape=shape, color=False)
+    def generate_one_sample(self, data, params):
+        w = 14
+        data[:, :w] = params[0]
+        data[:, w:] = params[1]
+        intensity = 0.1
+        data[:, :] += np.random.normal(scale=intensity/3, size=(self.shape))
+    def sampler(self, size):
+        return [np.random.uniform(0.1, 0.9, size=size), np.random.uniform(0.1, 0.9, size=size)]
+    def get_uniform_samples(self):
+        return np.linspace(0, 1, 1001, endpoint=True)
+    def get_nearest_params(self, data):
+        # to clip or not to clip.
+        return data.mean(axis=tuple(range(data.ndim)[1:])).reshape((-1,1))
+    def find_matching_sample_params(self, params):
+        true_params = self.sampler(len(params))
+        true_params = np.sort(true_params)
+        sorter = np.argsort(params[:,0])
+        invert_sorter = np.argsort(sorter)
+        return true_params[invert_sorter]
+
 
 class Dataset_syn_constant_normal(Dataset_syn_infinite):
     def __init__(self, shape):

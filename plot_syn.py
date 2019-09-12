@@ -33,7 +33,7 @@ def plot_to_image(plt):
     img = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
     return img
     
-def plot_hist(x, nearest_params, opts={}, i):
+def plot_hist(x, nearest_params, opts, i):
     plt.hist(nearest_params)
     plt.savefig(opts['name'] + '_' + str(i) + '_plot_hist.png')
     img = plot_to_image(plt)
@@ -42,7 +42,7 @@ def plot_hist(x, nearest_params, opts={}, i):
     return img
 
 
-def plot_2dhist(x, nearest_params, opts={}, i):
+def plot_2dhist(x, nearest_params, opts, i):
     plt.hist(nearest_params)    
     plt.savefig(opts['name'] + '_' + str(i) + '_plot_2dhist.png')
     img = plot_to_image(plt)
