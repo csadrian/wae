@@ -5,9 +5,13 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from PIL import Image
 from interpolatingfuncs import lerp_gaussian
 import wae
+from models import encoder
 
 import os
 from datahandler import DataHandler
+
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 
 '''
@@ -42,11 +46,11 @@ def scatterpics(images, pos):
         ab = AnnotationBbox(getImage(i), (pos[i][0], pos[i][1]), frameon=False)
         ax.add_artist(ab)
 
-    plt.xlim(-2,2)
-    plt.ylim(-2,2)
+    plt.xlim(-100,100)
+    plt.ylim(-100,100)
     plt.savefig("latentpic.png", dpi = 1000)
 
-
+# plot images in a grid
 def plotImages(data, n_x, n_y, name, text=None):
     (height, width, channel) = data.shape[1:]
     height_inc = height + 1
@@ -90,19 +94,55 @@ def interpolate(lows, highs):
 # My attemt at integrating it to the code
 
 def createimgs(opts):
-    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-50')
-
+    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-2500')
     net = wae.WAE(opts)
     net.saver.restore(net.sess, checkpoint)
 
     n = 50
+    k = 10
+    m = 5
+
+    NUM_POINTS = 10000
+    BATCH_SIZE = 100
 
     data = DataHandler(opts)
     images = data.data[:n]
 
-    pos = net.sample_pz(n)
+    enc_pics = net.sess.run(net.encoded,
+                feed_dict={
+                    #net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
+                    net.sample_points: images,
+                    net.is_training: False
+                })
+
+    #pos = net.sample_pz(n)
+    #pos = pos[:,:2]
+
+    #pca = PCA(n_components=2)
+    #pos = pca.fit_transform(pos)
+
+    pos = enc_pics
+
+    tsne = TSNE(n_components=2)
+    pos = tsne.fit_transform(pos)
+
+    print(pos)
+
+    zs = net.sample_pz(2 * k)
+    zs = np.reshape(zs, (k, 2, -1))
+    lows = zs[:,0,:]
+    highs = zs[:,1,:]
+    grid = interpolate(lows, highs)
     
-    pos = pos[:,:2]
+    for img_index in range(NUM_POINTS//BATCH_SIZE):
+        gen_pics = net.sess.run(net.decoded,
+                feed_dict={
+                    #net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
+                    net.sample_noise: grid,
+                    net.is_training: False
+                })
+
+    plotImages(gen_pics, m, k, 'gridpics')
 
     scatterpics(images, pos)
 
