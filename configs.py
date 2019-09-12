@@ -114,12 +114,14 @@ config_syn_constant_uniform = copy.deepcopy(config_mnist)
 config_syn_constant_uniform['dataset'] = 'syn_constant_uniform'
 config_syn_constant_uniform['e_num_filters'] = 256
 config_syn_constant_uniform['g_num_filters'] = 256
+config_syn_constant_uniform['print_every'] = 100
 
 
 config_syn_2_constant_uniform = copy.deepcopy(config_mnist)
 config_syn_2_constant_uniform['dataset'] = 'syn_2_constant_uniform'
 config_syn_2_constant_uniform['e_num_filters'] = 256
 config_syn_2_constant_uniform['g_num_filters'] = 256
+config_syn_2_constant_uniform['print_every'] = 100
 
 # Toy MNIST experiment
 config_mnist_small = copy.deepcopy(config_mnist)
