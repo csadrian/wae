@@ -621,7 +621,7 @@ class WAE(object):
     def sparsifier_factory(self, sources, targets):
         use_sparse = self.opts['sinkhorn_sparse']
         sparsifier_kind = self.opts['sinkhorn_sparsifier']
-        k = 3
+        k = 10
         batch_size = 200
         sess = self.sess
         n = sources.get_shape().as_list()[0]
@@ -758,7 +758,7 @@ class WAE(object):
                 if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
                     print("frame,", nat_targets_np.shape)
-                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=4, edges=False)
+                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=1.5, edges=False)
                     video.write_frame(frame)
                     print("frame")
 
