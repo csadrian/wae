@@ -28,6 +28,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import io
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
+import plot_syn
 
 class WAE(object):
 
@@ -978,6 +979,18 @@ class WAE(object):
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
                                'res_e%04d_mb%05d.png' % (epoch, it), P_np)
+
+                    generated_batches = []
+                    for l in range(10000//batch_size):
+                        noise = self.sample_pz(batch_size)
+                        sample_gen = self.sess.run(self.decoded, feed_dict={self.sample_noise: noise, self.is_training: False})
+                        generated_batches.append(sample_gen)
+                    generated = np.concatenate(generated_batches, axis=0)
+
+                    plot_dicts = plot_syn.get_plots(generated, opts)
+                    for plot_dict in plot_dicts:
+                        if 'NEPTUNE_API_TOKEN' in os.environ:
+                            neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])
 
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
