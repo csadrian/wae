@@ -117,7 +117,7 @@ config_syn_constant_uniform['g_num_filters'] = 256
 
 
 config_syn_2_constant_uniform = copy.deepcopy(config_mnist)
-config_syn_2_constant_uniform['dataset'] = 'syn_2-constant_uniform'
+config_syn_2_constant_uniform['dataset'] = 'syn_2_constant_uniform'
 config_syn_2_constant_uniform['e_num_filters'] = 256
 config_syn_2_constant_uniform['g_num_filters'] = 256
 
