@@ -27,21 +27,24 @@ NUM_POINTS = 10000
 BATCH_SIZE = 100
 
 
-def generate(opts):
-
-    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825')
-    meta = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-1825.meta')
-
+def restore_net(opts):
+    latest_checkpoint = tf.train.latest_checkpoint(os.path.join(opts['work_dir'], 'checkpoints'))
+    print(latest_checkpoint)
+    meta = latest_checkpoint + '.meta'
     net = wae.WAE(opts)
-
     net.saver = tf.train.import_meta_graph(meta)
-    net.saver.restore(net.sess, checkpoint)
+    net.saver.restore(net.sess, latest_checkpoint)
+    return net
 
-    # Finally, start generating the samples
+
+def generate(opts):
+    net = restore_net(opts)
+
+    # start generating the samples
 
     res_samples = []
 
-    for img_index in range(NUMPOINTS//BATCH_SIZE):
+    for img_index in range(NUM_POINTS//BATCH_SIZE):
         pics = net.sess.run(net.decoded,
             feed_dict={
                 #net.sample_noise: np.random.normal(size=(5, opts['zdim'])),
@@ -52,7 +55,7 @@ def generate(opts):
         res_samples.append(pics)
 
     samples = np.concatenate(res_samples, axis=0)
-    pic_path = os.path.join(opts['work_dir'], 'checkpoints', 'dummy.samples%d' % (NUM_POINTS))
+    pic_path = os.path.join(opts['work_dir'], 'dummy.samples%d' % NUM_POINTS)
     np.save(pic_path, samples)
     """
     for img_index, sample in enumerate(samples):

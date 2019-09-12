@@ -200,15 +200,15 @@ def main():
     if opts['nat_size'] == -1:
         opts['nat_size'] = train_size
 
-    if "NEPTUNE_API_TOKEN" in os.environ:
-        neptune.init(project_qualified_name="csadrian/global-sinkhorn")
-        exp = neptune.create_experiment(params=opts, name=opts['name'])
-
-        for tag in opts['tags'].split(','):
-            neptune.append_tag(tag)
-
+    use_neptune = "NEPTUNE_API_TOKEN" in os.environ
 
     if opts['mode'] == 'train':
+        if use_neptune:
+            neptune.init(project_qualified_name="csadrian/global-sinkhorn")
+            exp = neptune.create_experiment(params=opts, name=opts['name'])
+
+            for tag in opts['tags'].split(','):
+                neptune.append_tag(tag)
 
         # Creating WAE model
         wae = WAE(opts, train_size)
@@ -217,8 +217,10 @@ def main():
         # Training WAE
         wae.train(data)
 
-    elif opts['mode'] == 'test':
+        if use_neptune:
+            exp.stop()
 
+    elif opts['mode'] == 'test':
         # Do something else
         improved_wae.improved_sampling(opts)
 
@@ -228,7 +230,5 @@ def main():
     elif opts['mode'] == 'draw':
         picture_plot.createimgs(opts)
 
-    if "NEPTUNE_API_TOKEN" in os.environ:
-        exp.stop()
 
 main()

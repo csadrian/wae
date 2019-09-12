@@ -273,4 +273,5 @@ config_grassli_small['lr_schedule'] = 'plateau'
 config_checkers = copy.deepcopy(config_mnist)
 config_checkers['dataset'] = 'checkers'
 config_checkers['work_dir'] = 'results_checkers'
-config_checkers['data_dir'] = 'checkers'
+config_checkers['zdim'] = 2
+config_checkers['pz'] = 'uniform'

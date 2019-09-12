@@ -5,12 +5,12 @@ w = 28
 intensity = 0.1
 
 
-
 def checkers_sampler(xn, yn):
     bits = intensity + (1 - 2 * intensity) * np.random.randint(2, size=(xn, yn))
     img = np.kron(bits, np.ones((w // xn, w // yn)))
     # TODO hardwired 1 / 3.
     img += np.random.normal(scale=intensity / 3, size=(img.shape))
+    img = np.clip(img, 0.0, 1.0)
     return img
 
 

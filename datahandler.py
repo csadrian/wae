@@ -702,7 +702,7 @@ class DataHandler(object):
         self.data_shape = (28, 28, 1)
         train_size = 10000
         test_size = 10000
-        X = synth_data.checkers_sampler_n(train_size + test_size, 4, 4)
+        X = synth_data.checkers_sampler_n(train_size + test_size, 1, 4)
         X = np.expand_dims(X, axis=-1)
 
         self.data = Data(opts, X[:-test_size])

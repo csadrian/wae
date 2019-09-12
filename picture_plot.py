@@ -13,6 +13,8 @@ from datahandler import DataHandler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+import fideval # for restore_net
+
 
 '''
 n = 10
@@ -94,9 +96,7 @@ def interpolate(lows, highs):
 # My attemt at integrating it to the code
 
 def createimgs(opts):
-    checkpoint = os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final-2500')
-    net = wae.WAE(opts)
-    net.saver.restore(net.sess, checkpoint)
+    net = fideval.restore_net(opts)
 
     n = 50
     k = 10
