@@ -553,7 +553,7 @@ class Dataset_syn_constant_uniform(Dataset_syn_infinite):
 
 class Dataset_syn_2_constant_uniform(Dataset_syn_infinite):
     def __init__(self, shape):
-        super(Dataset_syn_constant_uniform, self).__init__("syn-2-constant-uniform", shape=shape, color=False)
+        super(Dataset_syn_2_constant_uniform, self).__init__("syn-2-constant-uniform", shape=shape, color=False)
     def generate_one_sample(self, data, params):
         w = 14
         data[:, :w] = params[0]
