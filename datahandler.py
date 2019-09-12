@@ -309,7 +309,7 @@ class DataHandler(object):
         train_size = opts['train_size']
         test_size = 100
 
-        ds = syn_data.Dataset_syn_constant_uniform((28, 28))
+        ds = syn_data.Dataset_syn_2_constant_uniform((28, 28))
         x = ds.generate_samples(train_size + test_size)
 
         self.data_shape = (28, 28, 1)

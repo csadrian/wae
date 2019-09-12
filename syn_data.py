@@ -554,19 +554,22 @@ class Dataset_syn_constant_uniform(Dataset_syn_infinite):
 class Dataset_syn_2_constant_uniform(Dataset_syn_infinite):
     def __init__(self, shape):
         super(Dataset_syn_2_constant_uniform, self).__init__("syn-2-constant-uniform", shape=shape, color=False)
+        self.w = 14
     def generate_one_sample(self, data, params):
-        w = 14
-        data[:, :w] = params[0]
-        data[:, w:] = params[1]
+        data[:, :self.w] = params[0]
+        data[:, self.w:] = params[1]
         intensity = 0.1
         data[:, :] += np.random.normal(scale=intensity/3, size=(self.shape))
     def sampler(self, size):
-        return [np.random.uniform(0.1, 0.9, size=size), np.random.uniform(0.1, 0.9, size=size)]
+        return np.random.uniform(0.1, 0.9, size=(size, 2))
     def get_uniform_samples(self):
         return np.linspace(0, 1, 1001, endpoint=True)
     def get_nearest_params(self, data):
         # to clip or not to clip.
-        return data.mean(axis=tuple(range(data.ndim)[1:])).reshape((-1,1))
+        one = data[:, :, :self.w].mean(axis=tuple(range(data.ndim)[1:])).reshape((-1,1))
+        two = data[:, :, self.w:].mean(axis=tuple(range(data.ndim)[1:])).reshape((-1,1))
+        return np.concatenate([one, two], axis=1)
+
     def find_matching_sample_params(self, params):
         true_params = self.sampler(len(params))
         true_params = np.sort(true_params)

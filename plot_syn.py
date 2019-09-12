@@ -22,7 +22,7 @@ def get_plots(x, opts, i):
     if opts['dataset'] in ['syn_constant_uniform']:
         plot_dicts.append({'name': 'syn_constant_uniform_hist', 'plot': plot_hist(x, nearest_params, opts, i)})
     if opts['dataset'] in ['syn_2_constant_uniform']:
-        plot_dicts.append({'name': 'syn_2_constant_uniform_2dhist', 'plot': plot_2dhist(x, nearest_params, opts, i)})
+        plot_dicts.append({'name': 'syn_2_constant_uniform_2dhist', 'plot': plot_hist2d(x, nearest_params, opts, i)})
     return plot_dicts
 
 
@@ -42,8 +42,8 @@ def plot_hist(x, nearest_params, opts, i):
     return img
 
 
-def plot_2dhist(x, nearest_params, opts, i):
-    plt.hist(nearest_params)    
+def plot_hist2d(x, nearest_params, opts, i):
+    plt.hist2d(nearest_params[:,0], nearest_params[:,1])
     plt.savefig(opts['name'] + '_' + str(i) + '_plot_2dhist.png')
     img = plot_to_image(plt)
     plt.clf()
