@@ -134,7 +134,7 @@ class WAE(object):
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
-        self.assign(tf.nat_targets, tf.nat_targets_np).eval(session=self.sess)
+        tf.assign(tf.nat_targets, tf.nat_targets_np).eval(session=self.sess)
 
     def add_inputs_placeholders(self):
         opts = self.opts
