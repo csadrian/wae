@@ -987,7 +987,7 @@ class WAE(object):
                         generated_batches.append(sample_gen)
                     generated = np.concatenate(generated_batches, axis=0)
 
-                    plot_dicts = plot_syn.get_plots(generated, opts)
+                    plot_dicts = plot_syn.get_plots(generated, opts, counter-1)
                     for plot_dict in plot_dicts:
                         if 'NEPTUNE_API_TOKEN' in os.environ:
                             neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])

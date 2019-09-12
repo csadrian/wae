@@ -12,7 +12,7 @@ def get_dataset(opts):
     dataset = syn_data.load(dataset_name, (28, 28), False)
     return dataset
 
-def get_plots(x, opts):
+def get_plots(x, opts, i):
 
     plot_dicts = []
     dataset = get_dataset(opts)
@@ -20,9 +20,9 @@ def get_plots(x, opts):
     nearest_params = dataset.get_nearest_params(x)
   
     if opts['dataset'] in ['syn_constant_uniform']:
-        plot_dicts.append({'name': 'syn_constant_uniform_hist', 'plot': plot_hist(x, nearest_params, opts)})
+        plot_dicts.append({'name': 'syn_constant_uniform_hist', 'plot': plot_hist(x, nearest_params, opts, i)})
     if opts['dataset'] in ['syn_2_constant_uniform']:
-        plot_dicts.append({'name': 'syn_2_constant_uniform_2dhist', 'plot': plot_2dhist(x, nearest_params, opts)})
+        plot_dicts.append({'name': 'syn_2_constant_uniform_2dhist', 'plot': plot_2dhist(x, nearest_params, opts, i)})
     return plot_dicts
 
 
@@ -33,18 +33,18 @@ def plot_to_image(plt):
     img = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
     return img
     
-def plot_hist(x, nearest_params, opts={}):
+def plot_hist(x, nearest_params, opts={}, i):
     plt.hist(nearest_params)
-    plt.savefig(opts['name']+'_plot_hist.png')
+    plt.savefig(opts['name'] + '_' + str(i) + '_plot_hist.png')
     img = plot_to_image(plt)
     plt.clf()
     plt.close()
     return img
 
 
-def plot_2dhist(x, nearest_params, opts={}):
+def plot_2dhist(x, nearest_params, opts={}, i):
     plt.hist(nearest_params)    
-    plt.savefig(opts['name']+'_plot_2dhist.png')
+    plt.savefig(opts['name'] + '_' + str(i) + '_plot_2dhist.png')
     img = plot_to_image(plt)
     plt.clf()
     plt.close()
