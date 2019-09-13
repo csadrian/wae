@@ -27,7 +27,6 @@ python run.py \
     --e_pretrain=False --work_dir=out/wae_${name}  > out/wae_${name}.cout 2> out/wae_${name}.cerr
 done
 
-exit 0
 
 for nat_resampling in None batch
 do
