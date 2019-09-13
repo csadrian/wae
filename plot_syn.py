@@ -3,6 +3,7 @@ matplotlib.use('Agg')
 
 import numpy as np
 import syn_data
+import synth_data # TODO sorry, should be merged into syn_data
 import matplotlib.pyplot as plt
 import io
 import PIL
@@ -15,14 +16,19 @@ def get_dataset(opts):
 def get_plots(x, opts, i):
 
     plot_dicts = []
-    dataset = get_dataset(opts)
-    #x = dataset.generate_samples(10000)
-    nearest_params = dataset.get_nearest_params(x)
-  
-    if opts['dataset'] in ['syn_constant_uniform']:
+
+    dataset_name = opts['dataset']
+    if dataset_name == 'checkers':
+        # TODO sorry, should be merged into syn_data as subclass.
+        nearest_params = synth_data.get_nearest_params(x)
+    else:
+        dataset = get_dataset(opts)
+        nearest_params = dataset.get_nearest_params(x)
+
+    if dataset_name in ['syn_constant_uniform']:
         plot_dicts.append({'name': 'syn_constant_uniform_hist', 'plot': plot_hist(x, nearest_params, opts, i)})
-    if opts['dataset'] in ['syn_2_constant_uniform']:
-        plot_dicts.append({'name': 'syn_2_constant_uniform_2dhist', 'plot': plot_hist2d(x, nearest_params, opts, i)})
+    if dataset_name in ['syn_2_constant_uniform', 'checkers']:
+        plot_dicts.append({'name': dataset_name + '_2dhist', 'plot': plot_hist2d(x, nearest_params, opts, i)})
     return plot_dicts
 
 
