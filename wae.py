@@ -646,7 +646,7 @@ class WAE(object):
         return sparsifier
 
 
-    def train(self, data):
+    def train(self, data, frequency_of_latent_change):
         opts = self.opts
         if opts['verbose']:
             logging.error(opts)
@@ -819,8 +819,16 @@ class WAE(object):
                                    self.rec_lambda: rec_lambda,
                                    self.lr_decay: decay,
                                    self.is_training: True})
+               
+                if frequency_of_latent_change==0:
+                    self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
+                else:
+                    if it%frequency_of_latent_change!=0:
+                        self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
+                    else:
+                        self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
+               # self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
 
-                self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
                 if self.sparsifier is not None:
                     self.sparsifier.on_batch_end()
 
@@ -987,10 +995,12 @@ class WAE(object):
                         generated_batches.append(sample_gen)
                     generated = np.concatenate(generated_batches, axis=0)
 
-                    plot_dicts = plot_syn.get_plots(generated, opts, counter-1)
-                    for plot_dict in plot_dicts:
-                        if 'NEPTUNE_API_TOKEN' in os.environ:
-                            neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])
+                    synthetic = opts['dataset'].startswith('syn') or opts['dataset'].startswith('checkers')
+                    if synthetic:
+                        plot_dicts = plot_syn.get_plots(generated, opts, counter-1)
+                        for plot_dict in plot_dicts:
+                            if 'NEPTUNE_API_TOKEN' in os.environ:
+                                neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])
 
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)

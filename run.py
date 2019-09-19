@@ -74,6 +74,7 @@ parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=Tr
 parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
 parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
 parser.add_argument('--nat_sparse_indices_num', dest='nat_sparse_indices_num', type=int, default=1000, help='Number of sparse indices')
+parser.add_argument('--frequency_of_latent_change', dest='frequency_of_latent_change', type=int, default=1000, help='Frequency of changes')
 
 FLAGS = parser.parse_args()
 
@@ -153,6 +154,7 @@ def main():
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
+    opts['frequency_of_latent_change']=FLAGS.frequency_of_latent_change
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
@@ -190,6 +192,7 @@ def main():
     # Loading the dataset
     data = DataHandler(opts)
     assert data.num_points >= opts['batch_size'], 'Training set too small'
+    frequency_of_latent_change=opts['frequency_of_latent_change']
 
     if 'train_size' in opts and opts['train_size'] is not None:
         train_size = opts['train_size']
@@ -213,9 +216,9 @@ def main():
         # Creating WAE model
         wae = WAE(opts, train_size)
         data.num_points = train_size
-        
+
         # Training WAE
-        wae.train(data)
+        wae.train(data,frequency_of_latent_change)
 
         if use_neptune:
             exp.stop()
