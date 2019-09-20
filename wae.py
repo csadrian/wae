@@ -1163,7 +1163,7 @@ def save_plots(opts, sample_train, sample_test,
     ax = plt.subplot(gs[1, 0])
 
     plt.scatter(nat_targets[:, 0], nat_targets[:, 1],
-                color='black', s=70, marker='+', label='Targets')
+                color='black', s=2, marker='+', label='Targets')
     plt.scatter(Pz[:, 0], Pz[:, 1],
                 color='red', s=70, marker='*', label='Pz')
     plt.scatter(Qz_train[:, 0], Qz_train[:, 1], color='blue',
