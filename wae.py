@@ -182,9 +182,14 @@ class WAE(object):
 
         niter=opts['sinkhorn_iters']
         if opts['sinkhorn_sparse']:
-            OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+            assert False, "now it's MMD, sparse version unimplemented"
+            # OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
-            OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+            print("NOT SINKHORN, MMD")
+            OT = self.mmd_penalty(x_latents_with_current_batch, self.nat_targets)
+            # OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+            P = tf.zeros(1)
+            C = tf.zeros(1)
         self.P = P
         self.C = C
         return OT
