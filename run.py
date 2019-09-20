@@ -192,7 +192,6 @@ def main():
     # Loading the dataset
     data = DataHandler(opts)
     assert data.num_points >= opts['batch_size'], 'Training set too small'
-    frequency_of_latent_change=opts['frequency_of_latent_change']
 
     if 'train_size' in opts and opts['train_size'] is not None:
         train_size = opts['train_size']
@@ -218,7 +217,7 @@ def main():
         data.num_points = train_size
 
         # Training WAE
-        wae.train(data,frequency_of_latent_change)
+        wae.train(data)
 
         if use_neptune:
             exp.stop()

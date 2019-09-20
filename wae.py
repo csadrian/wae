@@ -646,7 +646,7 @@ class WAE(object):
         return sparsifier
 
 
-    def train(self, data, frequency_of_latent_change):
+    def train(self, data):
         opts = self.opts
         if opts['verbose']:
             logging.error(opts)
@@ -677,6 +677,8 @@ class WAE(object):
         rec_lambda = opts['rec_lambda']
         zxz_lambda = opts['zxz_lambda']
         batch_size = opts['batch_size']
+        frequency_of_latent_change=opts['frequency_of_latent_change']
+
 
 
         # Weights of the extra costs
