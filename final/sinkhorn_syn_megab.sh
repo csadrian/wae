@@ -8,9 +8,9 @@ train_size=10000
 exp=syn_2_constant_uniform
 nat_resampling=None
 wae_lambda=0.0
-epoch_num=500
+epoch_num=100
 pz=uniform
-nat_size=1000
+nat_size=10000
 for sinkhorn_iters in 10
 do
 for sinkhorn_epsilon in 0.1

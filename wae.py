@@ -99,7 +99,7 @@ class WAE(object):
         self.zxz_loss = self.zxz_loss()
 
         self.penalty, self.loss_gan = self.matching_penalty()
-        self.loss_reconstruct = self.reconstruction_loss(
+        self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
         self.wae_objective = self.rec_lambda * self.loss_reconstruct + self.ot_lambda * self.ot_loss + self.wae_lambda * self.penalty
 
@@ -131,6 +131,7 @@ class WAE(object):
         self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim'])), dtype=tf.float32, trainable=False)
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
         self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(None, 2)) #opts['nat_sparse_indices_num']
+        self.x_rec_losses_np = 100000.0*np.ones((self.train_size,)) #tf.Variable(100000.0*tf.ones((self.train_size, )), dtype=tf.float32, trainable=False)
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
@@ -407,18 +408,21 @@ class WAE(object):
         if opts['cost'] == 'l2':
             # c(x,y) = ||x - y||_2
             loss = tf.reduce_sum(tf.square(real - reconstr), axis=[1, 2, 3])
+            per_sample_loss = tf.sqrt(1e-08 + loss)
             loss = 0.2 * tf.reduce_mean(tf.sqrt(1e-08 + loss))
         elif opts['cost'] == 'l2sq':
             # c(x,y) = ||x - y||_2^2
             loss = tf.reduce_sum(tf.square(real - reconstr), axis=[1, 2, 3])
+            per_sample_loss = loss
             loss = 0.05 * tf.reduce_mean(loss)
         elif opts['cost'] == 'l1':
             # c(x,y) = ||x - y||_1
             loss = tf.reduce_sum(tf.abs(real - reconstr), axis=[1, 2, 3])
+            per_sample_loss = loss
             loss = 0.02 * tf.reduce_mean(loss)
         else:
             assert False, 'Unknown cost function %s' % opts['cost']
-        return loss
+        return loss, per_sample_loss
 
     def compute_blurriness(self):
         images = self.sample_points
@@ -753,6 +757,9 @@ class WAE(object):
                     rnd_it = random.randint(0, batches_num-1)
                     data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
 
+                if epoch > 0:
+                    data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
+
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
@@ -787,13 +794,14 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match, loss_ot, P_np] = self.sess.run(
+                [_, loss, loss_rec, loss_match, loss_ot, P_np, per_sample_rec_loss_np] = self.sess.run(
                     [self.ae_opt,
                      self.wae_objective,
                      self.loss_reconstruct,
                      self.penalty,
                      self.ot_loss,
-                     self.P],
+                     self.P,
+                     self.per_sample_rec_loss],
                     feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
@@ -829,8 +837,9 @@ class WAE(object):
                         self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
                     else:
                         self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
-               # self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
+                # self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
 
+                self.x_rec_losses_np[data_ids] = per_sample_rec_loss_np
                 if self.sparsifier is not None:
                     self.sparsifier.on_batch_end()
 
