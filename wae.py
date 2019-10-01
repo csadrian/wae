@@ -97,6 +97,8 @@ class WAE(object):
 
         self.ot_loss = self.sinkhorn_loss()
         self.zxz_loss = self.zxz_loss()
+        if self.ot_lambda == 0.0:
+            self.ot_loss = 0.0
 
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
@@ -180,6 +182,7 @@ class WAE(object):
         x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
         x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
+        self.x_latents_with_current_batch = x_latents_with_current_batch
 
         niter=opts['sinkhorn_iters']
         if opts['sinkhorn_sparse']:
@@ -287,8 +290,13 @@ class WAE(object):
     def matching_penalty(self):
         opts = self.opts
         loss_gan = None
-        sample_qz = self.encoded
-        sample_pz = self.sample_noise
+        if opts['matching_penalty_scope'] == 'nat':
+            sample_qz = self.x_latents_with_current_batch
+            sample_pz = self.nat_targets
+        else:
+            sample_qz = self.encoded
+            sample_pz = self.sample_noise
+
         if opts['z_test'] == 'gan':
             loss_gan, loss_match = self.gan_penalty(sample_qz, sample_pz)
         elif opts['z_test'] == 'mmd':
@@ -751,14 +759,14 @@ class WAE(object):
                     self.resample_nat_targets()
 
                 # Sample batches of data points and Pz noise
-                if self.opts['shuffle']:
+                if (self.opts['feed_by_score_from_epoch'] != -1) and (self.opts['feed_by_score_from_epoch'] <= epoch+1):
+                    data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
+                elif self.opts['shuffle']:
                     data_ids = np.random.choice(self.train_size, opts['batch_size'], replace=False)
                 else:
                     rnd_it = random.randint(0, batches_num-1)
                     data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
 
-                if epoch > 0:
-                    data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
 
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
                 batch_images = data.data[data_ids].astype(np.float)
