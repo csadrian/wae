@@ -74,9 +74,11 @@ parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=Tr
 parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
 parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
 parser.add_argument('--nat_sparse_indices_num', dest='nat_sparse_indices_num', type=int, default=1000, help='Number of sparse indices')
-parser.add_argument('--frequency_of_latent_change', dest='frequency_of_latent_change', type=int, default=1000, help='Frequency of changes')
+parser.add_argument('--frequency_of_latent_change', dest='frequency_of_latent_change', type=int, default=0, help='Frequency of changes')
 parser.add_argument('--matching_penalty_scope', dest='matching_penalty_scope', type=str, default='batch', help='Matching penalty scope, can by: batch, nat')
 parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
+parser.add_argument('--stay_lambda', dest='stay_lambda', type=float, default=0.0, help='Lambda for stay loss.')
+
 
 FLAGS = parser.parse_args()
 
@@ -159,6 +161,7 @@ def main():
     opts['frequency_of_latent_change']=FLAGS.frequency_of_latent_change
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['matching_penalty_scope']=FLAGS.matching_penalty_scope
+    opts['stay_lambda'] = FLAGS.stay_lambda
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
