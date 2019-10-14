@@ -69,7 +69,7 @@ config_mnist['data_dir'] = 'mnist'
 
 config_mnist['optimizer'] = 'adam' # adam, sgd
 config_mnist['adam_beta1'] = 0.5
-config_mnist['lr'] = 0.001
+config_mnist['lr'] = 0.0001 #changed
 config_mnist['lr_adv'] = 0.0005
 config_mnist['lr_schedule'] = 'manual' #manual, plateau, or a number
 config_mnist['batch_size'] = 100
@@ -277,6 +277,6 @@ config_checkers['zdim'] = 2
 config_checkers['pz'] = 'uniform'
 config_checkers['e_noise'] = 'deterministic'
 config_checkers['e_pretrain'] = False
-config_checkers['e_num_filters'] = 256
-config_checkers['g_num_filters'] = 256
+config_checkers['e_num_filters'] = 128
+config_checkers['g_num_filters'] = 128
 config_checkers['print_every'] = 50
