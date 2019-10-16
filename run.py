@@ -3,7 +3,7 @@ import sys
 import logging
 import argparse
 import configs
-from wae import WAE
+from wae1 import WAE
 import improved_wae
 from datahandler import DataHandler
 import utils
@@ -57,6 +57,8 @@ parser.add_argument("--checkpoint",
                     help='full path to the checkpoint file without extension')
 
 
+parser.add_argument('--mmd_or_sinkhorn', dest='mmd_or_sinkhorn', type=str, default='sinkhorn', help='Use mmd or sinkhorn as metric [mmd/sinkhorn]')
+parser.add_argument('--mmd_linear', dest='mmd_linear', type=str, default=True, help='Use linear time mmd')
 parser.add_argument('--sinkhorn_sparse', dest='sinkhorn_sparse', type=str2bool, default=False, help='Whether Sinkhorn is run on a sparsified cost matrix')
 parser.add_argument('--sinkhorn_sparsifier', dest='sinkhorn_sparsifier', type=str, default=None, help='Sinkhorn sparsifier fn')
 parser.add_argument('--sparsifier_freq', dest='sparsifier_freq', type=int, default=None, help='Recalculate sparsified indices on every nth batch.')
@@ -154,7 +156,8 @@ def main():
     if FLAGS.nat_sparse_indices_num is not None:
         opts['nat_sparse_indices_num'] = FLAGS.nat_sparse_indices_num
 
-
+    opts['mmd_or_sinkhorn'] = FLAGS.mmd_or_sinkhorn
+    opts['mmd_linear'] = FLAGS.mmd_linear
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq

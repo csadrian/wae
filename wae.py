@@ -95,24 +95,39 @@ class WAE(object):
 
         # -- Objectives, losses, penalties
 
-        if opts['stay_lambda'] == 0.0:
-            self.ot_loss = self.sinkhorn_loss()
-            self.stay_loss = tf.constant(0.0)
-        else:
-            self.ot_loss, self.stay_loss = self.sinkhorn_loss_with_stay()
+
 
         self.zxz_loss = self.zxz_loss()
         if self.ot_lambda == 0.0:
             self.ot_loss = 0.0
 
+        
+
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
-        self.stay_lambda = opts['stay_lambda']
-        self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
+        
+
+        if opts['mmd_or_sinkhorn']=='sinkhorn':
+
+            self.stay_lambda = opts['stay_lambda']
+            if opts['stay_lambda'] == 0.0:
+                self.ot_loss = self.sinkhorn_loss()
+                self.stay_loss = tf.constant(0.0)
+            else:
+                self.ot_loss, self.stay_loss = self.sinkhorn_loss_with_stay()
+
+            self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
                     self.ot_lambda * self.ot_loss + \
                     self.wae_lambda * self.penalty + \
                     self.stay_lambda * self.stay_loss
+
+        elif opts['mmd_or_sinkhorn']=='mmd':
+            self.stay_loss = tf.constant(0.0)
+            self.ot_loss = self.mmd_loss()
+            self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
+                    self.ot_lambda * self.ot_loss + \
+                    self.wae_lambda * self.penalty
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -177,6 +192,24 @@ class WAE(object):
         #self.ids_to_update_ph = tf.placeholder(tf.int32, shape=(self.opts['batch_size'])
         #self.values_for_update_ph = tf.placeholder(tf.float32, shape=(self.opts['batch_size'])
         #self.update_latents_op = tf.scatter_update(self.x_latents, self.ids_to_update_ph, latents)
+
+    def mmd_loss(self):
+        opts = self.opts
+        sample_qz = self.encoded
+
+        n = opts['nat_size']
+
+        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
+        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
+        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
+
+
+        if opts['mmd_linear']:
+            mmd = self.mmd_linear(x_latents_with_current_batch, self.nat_targets)
+        else:
+            mmd = self.mmd_penalty(x_latents_with_current_batch, self.nat_targets)
+
+        return mmd
 
     def sinkhorn_loss(self):
         opts = self.opts
@@ -372,6 +405,78 @@ class WAE(object):
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
         return loss_match, loss_gan
+
+
+    def mmd_linear(self, sample_qz, sample_pz):
+        opts = self.opts
+        sigma2_p = opts['pz_scale'] ** 2
+        kernel = opts['mmd_kernel']
+        n = utils.get_batch_size(sample_qz)
+        n = tf.cast(n, tf.int32)
+        nf = tf.cast(n, tf.float32)
+
+        with tf.Session() as sess:
+   	     half = n.eval()//2
+        even_indices = [2*i for i in range(half+1)]
+        odd_indices = [2*i+1 for i in range(half+1)]
+        pz_even = tf.gather(sample_pz, even_indices)
+        pz_odd = tf.gather(sample_pz, odd_indices)
+        qz_even = tf.gather(sample_qz, even_indices)
+        qz_odd = tf.gather(sample_qz, odd_indices)
+
+
+        norms_even_pz = tf.reduce_sum(tf.square(pz_even), axis=1)
+        norms_odd_pz = tf.reduce_sum(tf.square(pz_odd), axis=1)
+        neighbor_dotprods_pz = tf.reduce_sum(tf.math.multiply(pz_even,pz_odd), axis=1)
+        distances_pz = norms_even_pz + norms_odd_pz -2. * neighbor_dotprods_pz
+
+        norms_even_qz = tf.reduce_sum(tf.square(qz_even), axis=1)
+        norms_odd_qz = tf.reduce_sum(tf.square(qz_odd), axis=1)
+        neighbor_dotprods_qz = tf.reduce_sum(tf.math.multiply(qz_even,qz_odd), axis=1)
+        distances_qz = norms_even_qz + norms_odd_qz -2. * neighbor_dotprods_qz
+
+        cross_dotprods_1 = tf.reduce_sum(tf.math.multiply(pz_even,qz_odd), axis=1)
+        cross_dotprods_2 = tf.reduce_sum(tf.math.multiply(pz_odd,qz_even), axis=1)
+        cross_distances_1 = norms_even_pz + norms_odd_qz - 2. * cross_dotprods_1
+        cross_distances_2 = norms_odd_pz + norms_even_qz - 2. * cross_dotprods_2
+
+        if kernel == 'RBF':
+            sigma2_k = tf.nn.top_k(cross_distances_1, half).values[half - 1]
+            sigma2_k += tf.nn.top_k(distances_qz, half).values[half - 1]
+
+            res1 = tf.exp( - distances_qz / 2. / sigma2_k)
+            res1 += tf.exp( - distances_pz / 2. / sigma2_k)
+            res1 = tf.reduce_sum(res1) / half
+            res2 = tf.exp( - cross_distances_1 / 2. / sigma2_k)
+            res2 += tf.exp( - cross_distances_2 / 2. / sigma2_k)
+            res2 = tf.reduce_sum(res2)  / half
+            stat = res1 - res2
+
+        elif kernel == 'IMQ':
+            # k(x, y) = C / (C + ||x - y||^2)
+            # C = tf.nn.top_k(tf.reshape(distances, [-1]), half_size).values[half_size - 1]
+            # C += tf.nn.top_k(tf.reshape(distances_qz, [-1]), half_size).values[half_size - 1]
+            if opts['pz'] == 'normal':
+                Cbase = 2. * opts['zdim'] * sigma2_p
+            elif opts['pz'] == 'sphere':
+                Cbase = 2.
+            elif opts['pz'] == 'uniform':
+                # E ||x - y||^2 = E[sum (xi - yi)^2]
+                #               = zdim E[(xi - yi)^2]
+                #               = const * zdim
+                Cbase = opts['zdim']
+            stat = 0.
+            for scale in [.1, .2, .5, 1., 2., 5., 10.]:
+                C = Cbase * scale
+                res1 = C / (C + distances_qz)
+                res1 += C / (C + distances_pz)
+                res1 = tf.reduce_sum(res1) / half
+                res2 = C / (C + cross_distances_1)
+                res2 += C / (C + cross_distances_2)
+                res2 = tf.reduce_sum(res2) / half
+                stat += res1 - res2
+        return stat
+
 
     def mmd_penalty(self, sample_qz, sample_pz):
         opts = self.opts
@@ -864,16 +969,31 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                [_, loss, loss_rec, loss_match, loss_ot, loss_stay, P_np, per_sample_rec_loss_np] = self.sess.run(
-                    [self.ae_opt,
-                     self.wae_objective,
-                     self.loss_reconstruct,
-                     self.penalty,
-                     self.ot_loss,
-                     self.stay_loss,
-                     self.P,
-                     self.per_sample_rec_loss],
-                    feed_dict=feed_d)
+                if opts['mmd_or_sinkhorn']=='sinkhorn':
+
+
+                    [_, loss, loss_rec, loss_match, loss_ot, loss_stay, P_np, per_sample_rec_loss_np] = self.sess.run(
+                        [self.ae_opt,
+                         self.wae_objective,
+                         self.loss_reconstruct,
+                         self.penalty,
+                         self.ot_loss,
+                         self.stay_loss,
+                         self.P,
+                         self.per_sample_rec_loss],
+                         feed_dict=feed_d)
+
+                elif opts['mmd_or_sinkhorn']=='mmd':
+
+                    [_, loss, loss_rec, loss_match, loss_ot, loss_stay, per_sample_rec_loss_np] = self.sess.run(
+                        [self.ae_opt,
+                         self.wae_objective,
+                         self.loss_reconstruct,
+                         self.penalty,
+                         self.ot_loss,
+                         self.stay_loss,
+                         self.per_sample_rec_loss],
+                         feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
                     _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
@@ -939,15 +1059,28 @@ class WAE(object):
 
 
                 if 'NEPTUNE_API_TOKEN' in os.environ:
-                    neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
-                    neptune.send_metric('loss_rec', x=counter, y=loss_rec)
-                    neptune.send_metric('loss_ot', x=counter, y=loss_ot)
-                    neptune.send_metric('loss_stay', x=counter, y=loss_stay)
-                    neptune.send_metric('loss', x=counter, y=loss)
-                    neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
-                    neptune.send_metric('ot_lambda', x=counter, y=ot_lambda)
-                    neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
-                    neptune.send_metric('lr', x=counter, y=decay)
+                    if opts['mmd_or_sinkhorn']=='sinkhorn':
+                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
+                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
+                        neptune.send_metric('loss_ot', x=counter, y=loss_ot)
+                        neptune.send_metric('loss_stay', x=counter, y=loss_stay)
+                        neptune.send_metric('loss', x=counter, y=loss)
+                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
+                        neptune.send_metric('ot_lambda', x=counter, y=ot_lambda)
+                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                        neptune.send_metric('lr', x=counter, y=decay)
+
+                    if opts['mmd_or_sinkhorn']=='mmd':
+                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
+                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
+                        neptune.send_metric('loss_mmd', x=counter, y=loss_ot)
+                        neptune.send_metric('loss_stay', x=counter, y=loss_stay)
+                        neptune.send_metric('loss', x=counter, y=loss)
+                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
+                        neptune.send_metric('mmd_lambda', x=counter, y=ot_lambda)
+                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                        neptune.send_metric('lr', x=counter, y=decay)
+
                 
                 # Update regularizer if necessary
                 if opts['lambda_schedule'] == 'adaptive':
@@ -1061,6 +1194,7 @@ class WAE(object):
                         nat_targets_proj = self.nat_targets_np[:, :2]
 
                     # Making plots
+
                     summary_plot, transport_plot = save_plots(opts, data.data[:self.num_pics],
                                data.test_data[:self.num_pics],
                                rec_train[:self.num_pics],
@@ -1069,7 +1203,9 @@ class WAE(object):
                                Qz_train, Qz_test, Pz, nat_targets_proj,
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
-                               'res_e%04d_mb%05d.png' % (epoch, it), P_np)
+                               'res_e%04d_mb%05d.png' % (epoch, it)
+                               #, P_np
+                               )
 
                     generated_batches = []
                     for l in range(10000//batch_size):
@@ -1127,7 +1263,9 @@ def save_plots(opts, sample_train, sample_test,
                Qz_train, Qz_test, Pz, nat_targets,
                losses_rec, losses_match, blurr_vals,
                encoding_changes,
-               filename, P_np):
+               filename
+               #, P_np
+               ):
     """ Generates and saves the plot of the following layout:
         img1 | img2 | img3
         img4 | img6 | img5
