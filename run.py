@@ -3,7 +3,7 @@ import sys
 import logging
 import argparse
 import configs
-from wae1 import WAE
+from wae import WAE
 import improved_wae
 from datahandler import DataHandler
 import utils
