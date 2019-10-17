@@ -11,12 +11,14 @@ sinkhorn_iters=10
 epoch_num=20
 
 
-for wae_lambda in 10 1 100 0.1
+for lr in 0.001 0.0003 0.0001
+do
+for wae_lambda in 100 10 1000
 do
 zdim=2
 sinkhorn_iters=10
 sinkhorn_epsilon=0.01
-name="exp=${exp}_wae_baseline_train_size=${train_size}_zdim=${zdim}_wae_lambda=${wae_lambda}_${dt}"
+name="exp=${exp}_wae_baseline_train_size=${train_size}_zdim=${zdim}_wae_lambda=${wae_lambda}_lr=${lr}_folc=1_${dt}"
 python run.py \
     --sinkhorn_sparse=False --sinkhorn_sparsifier=None --nat_sparse_indices_num=1000 \
     --pz=uniform --zdim=${zdim} \
@@ -24,9 +26,13 @@ python run.py \
     --nat_resampling=${nat_resampling} --tag="${exp},checkers_2_grid,wae" --exp=${exp} \
     --rec_lambda=${rec_lambda} --train_size=${train_size} --wae_lambda=${wae_lambda} --epoch_num=${epoch_num} \
     --ot_lambda=0.0 --sinkhorn_epsilon=${sinkhorn_epsilon} --sinkhorn_iters=${sinkhorn_iters} \
+    --lr=${lr} --frequency_of_latent_change=1 \
     --e_pretrain=False --work_dir=out/wae_${name}  > out/wae_${name}.cout 2> out/wae_${name}.cerr
 done
+done
 
+
+exit
 
 for nat_resampling in None batch
 do

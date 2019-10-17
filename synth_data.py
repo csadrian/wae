@@ -39,6 +39,16 @@ def get_nearest_params(x):
     return merged
 
 
+def covered_area(zs, resolution=400, radius=10):
+    r = radius
+    m = np.zeros((resolution, resolution))
+    for z in zs:
+        zr = (resolution * (z + 1) / 2).astype(int)
+        x, y = zr
+        m[max((x-r, 0)):min((x+r, resolution)), max((y-r, 0)):min((y+r, resolution))] += 1
+    return np.mean((m > 0).astype(np.float32))
+
+
 def loglikelihood_estimator(d, xn, yn):
     assert False, "this does not consider 2d intensity"
     xw = w // xn
@@ -48,6 +58,12 @@ def loglikelihood_estimator(d, xn, yn):
     bits = (bit_estimates > 0.5).astype(np.int).astype(np.float)
     intended_img = np.kron(bits, np.ones((xw, yw)))
     return -np.sum(np.square(d - intended_img))
+
+
+def covered_area_test():
+    n = 1000
+    zs = np.random.uniform(low=-1, high=+1, size=(n, 2))
+    print(covered_area(zs, resolution=400, radius=10))
 
 
 def main():
@@ -70,4 +86,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # covered_area_test(); exit()
     main()

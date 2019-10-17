@@ -115,6 +115,8 @@ def main():
     else:
         assert False, 'Unknown experiment configuration'
 
+    opts['exp'] = FLAGS.exp
+
     opts['mode'] = FLAGS.mode
     if opts['mode'] == 'test':
         assert FLAGS.checkpoint is not None, 'Checkpoint must be provided'

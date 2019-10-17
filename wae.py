@@ -945,6 +945,12 @@ class WAE(object):
                     frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=1.5, edges=False)
                     video.write_frame(frame)
                     print("frame")
+                    if opts['exp'] == 'checkers':
+                        import synth_data
+                        covered = synth_data.covered_area(x_latents_np, resolution=400, radius=5)
+                        print("covered_area", x_latents_np.shape, covered)
+                        if 'NEPTUNE_API_TOKEN' in os.environ:
+                            neptune.send_metric('covered_area', x=counter, y=covered)
 
                 # Update encoder and decoder
                 feed_d = {
