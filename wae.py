@@ -786,10 +786,10 @@ class WAE(object):
 
         if overwrite_placeholder:
             if ids is not None:
-                ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])]
+                ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['recalculate_size'])]
                 tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
                 self.x_latents_np[ids_to_update] = latents
-                self.nat_pos = (self.nat_pos + self.opts['batch_size']) % self.opts['nat_size']
+                self.nat_pos = (self.nat_pos + self.opts['recalculate_size']) % self.opts['nat_size']
             else:
                 self.x_latents.assign(latents).eval(session=self.sess)
                 self.x_latents_np = latents
@@ -856,7 +856,6 @@ class WAE(object):
         rec_lambda = opts['rec_lambda']
         zxz_lambda = opts['zxz_lambda']
         batch_size = opts['batch_size']
-        frequency_of_latent_change=opts['frequency_of_latent_change']
 
 
 
@@ -919,7 +918,7 @@ class WAE(object):
             #self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
             if self.sparsifier is not None:
                 self.sparsifier.on_epoch_begin()
-            
+
             for it in range(batches_num):
 
                 if self.opts['nat_resampling'] == 'batch':
@@ -929,7 +928,9 @@ class WAE(object):
                 if (self.opts['feed_by_score_from_epoch'] != -1) and (self.opts['feed_by_score_from_epoch'] <= epoch+1):
                     data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
                 elif self.opts['shuffle']:
-                    data_ids = np.random.choice(self.train_size, opts['batch_size'], replace=False)
+                    assert opts['recalculate_size']>=opts['batch_size'], "recalculate_size must be as large as batch_size"
+                    all_data_ids = np.random.choice(self.train_size, opts['recalculate_size'], replace=False)
+                    data_ids = all_data_ids[:opts['batch_size']]
                 else:
                     rnd_it = random.randint(0, batches_num-1)
                     data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
@@ -1021,14 +1022,9 @@ class WAE(object):
                                    self.lr_decay: decay,
                                    self.is_training: True})
                
-                if frequency_of_latent_change==0:
-                    self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
-                else:
-                    if it%frequency_of_latent_change!=0:
-                        self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=data_ids)
-                    else:
-                        self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
-                # self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True)
+
+                self.recalculate_x_latents(data, self.train_size, opts['recalculate_size'], overwrite_placeholder=True, ids=all_data_ids)
+
 
                 self.x_rec_losses_np[data_ids] = per_sample_rec_loss_np
                 if self.sparsifier is not None:
