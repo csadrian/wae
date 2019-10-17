@@ -55,7 +55,7 @@ parser.add_argument("--mode", default='train',
                     help='train or test')
 parser.add_argument("--checkpoint",
                     help='full path to the checkpoint file without extension')
-
+parser.add_argument("--batch_size", dest="batch_size", type=int, help="batch_size")
 
 parser.add_argument('--mmd_or_sinkhorn', dest='mmd_or_sinkhorn', type=str, default='sinkhorn', help='Use mmd or sinkhorn as metric [mmd/sinkhorn]')
 parser.add_argument('--mmd_linear', dest='mmd_linear', type=str, default=True, help='Use linear time mmd')
@@ -80,7 +80,7 @@ parser.add_argument('--frequency_of_latent_change', dest='frequency_of_latent_ch
 parser.add_argument('--matching_penalty_scope', dest='matching_penalty_scope', type=str, default='batch', help='Matching penalty scope, can by: batch, nat')
 parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
 parser.add_argument('--stay_lambda', dest='stay_lambda', type=float, default=0.0, help='Lambda for stay loss.')
-
+parser.add_argument('--recalculate_size', dest='recalculate_size', type=int, help='No. of points to be recalculated each iter')
 
 FLAGS = parser.parse_args()
 
@@ -119,6 +119,15 @@ def main():
     if opts['mode'] == 'test':
         assert FLAGS.checkpoint is not None, 'Checkpoint must be provided'
         opts['checkpoint'] = FLAGS.checkpoint
+
+    if FLAGS.batch_size is not None:
+        opts['batch_size'] = FLAGS.batch_size
+   
+    if FLAGS.recalculate_size is not None:
+        opts['recalculate_size'] = FLAGS.recalculate_size
+        assert opts['recalculate_size'] >= opts['batch_size'], "recalculate_size should be at least as large as batch_size"
+    else:
+        opts['recalculate_size'] = opts['batch_size']
 
     if FLAGS.zdim is not None:
         opts['zdim'] = FLAGS.zdim
@@ -165,6 +174,7 @@ def main():
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['matching_penalty_scope']=FLAGS.matching_penalty_scope
     opts['stay_lambda'] = FLAGS.stay_lambda
+    opts['recalculate_size'] = FLAGS.recalculate_size
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
