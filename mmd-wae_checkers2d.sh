@@ -10,12 +10,16 @@ exp=checkers
 sinkhorn_iters=10
 epoch_num=20
 
+mmd_or_sinkhorn = 'mmd'
+mmd_linear = False
+
 
 for bs in 100 200 400 500 1000
 do
 for lr in 0.0001 0.0003
 do
-wae_lambda=100
+wae_lambda=0
+ot_lambda=100
 zdim=2
 sinkhorn_iters=10
 sinkhorn_epsilon=0.01
