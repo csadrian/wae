@@ -95,13 +95,9 @@ class WAE(object):
 
         # -- Objectives, losses, penalties
 
-
-
         self.zxz_loss = self.zxz_loss()
-        if self.ot_lambda == 0.0:
+        if opts['ot_lambda'] == 0.0:
             self.ot_loss = 0.0
-
-        
 
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
