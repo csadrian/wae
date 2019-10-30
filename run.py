@@ -170,10 +170,8 @@ def main():
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
-    opts['frequency_of_latent_change']=FLAGS.frequency_of_latent_change
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['matching_penalty_scope']=FLAGS.matching_penalty_scope
-    opts['stay_lambda'] = FLAGS.stay_lambda
     opts['recalculate_size'] = FLAGS.recalculate_size
 
     if FLAGS.sinkhorn_iters is not None:
