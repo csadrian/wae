@@ -906,29 +906,27 @@ class WAE(object):
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                if opts['mmd_or_sinkhorn']=='sinkhorn':
+               # if opts['mmd_or_sinkhorn']=='sinkhorn':
 
 
-                    [_, loss, loss_rec, loss_match, loss_ot, P_np, per_sample_rec_loss_np] = self.sess.run(
-                        [self.ae_opt,
-                         self.wae_objective,
-                         self.loss_reconstruct,
-                         self.penalty,
-                         self.ot_loss,
-                         self.P,
-                         self.per_sample_rec_loss],
-                         feed_dict=feed_d)
+               #     [_, loss, loss_rec, loss_match, loss_ot, P_np, per_sample_rec_loss_np] = self.sess.run(
+               #         [self.ae_opt,
+               #          self.wae_objective,
+               #          self.loss_reconstruct,
+               #          self.penalty,
+               #          self.ot_loss,
+               #          self.P,
+               #          self.per_sample_rec_loss],
+               #          feed_dict=feed_d)
 
-                elif opts['mmd_or_sinkhorn']=='mmd':
-
-                    [_, loss, loss_rec, loss_match, loss_ot, per_sample_rec_loss_np] = self.sess.run(
-                        [self.ae_opt,
-                         self.wae_objective,
-                         self.loss_reconstruct,
-                         self.penalty,
-                         self.ot_loss,
-                         self.per_sample_rec_loss],
-                         feed_dict=feed_d)
+                [_, loss, loss_rec, loss_match, loss_ot, per_sample_rec_loss_np] = self.sess.run(
+                    [self.ae_opt,
+                     self.wae_objective,
+                     self.loss_reconstruct,
+                     self.penalty,
+                     self.ot_loss,
+                     self.per_sample_rec_loss],
+                     feed_dict=feed_d)
 
                 if zxz_lambda != 0.0:
                     _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
@@ -989,27 +987,18 @@ class WAE(object):
 
 
                 if 'NEPTUNE_API_TOKEN' in os.environ:
-                    if opts['mmd_or_sinkhorn']=='sinkhorn':
-                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
-                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
-                        neptune.send_metric('loss_ot', x=counter, y=loss_ot)
-                        neptune.send_metric('loss', x=counter, y=loss)
-                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
-                        neptune.send_metric('ot_lambda', x=counter, y=ot_lambda)
-                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
-                        neptune.send_metric('lr', x=counter, y=decay)
 
-                    if opts['mmd_or_sinkhorn']=='mmd':
-                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
-                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
-                        neptune.send_metric('loss_mmd', x=counter, y=loss_ot)
-                        neptune.send_metric('loss', x=counter, y=loss)
-                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
-                        neptune.send_metric('mmd_lambda', x=counter, y=ot_lambda)
-                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
-                        neptune.send_metric('lr', x=counter, y=decay)
+                    neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
+                    neptune.send_metric('loss_rec', x=counter, y=loss_rec)
+                    neptune.send_metric('loss'+opts['mmd_or_sinkhorn'], x=counter, y=loss_ot)
+                    neptune.send_metric('loss', x=counter, y=loss)
+                    neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
+                    neptune.send_metric('mmd_lambda', x=counter, y=ot_lambda)
+                    neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                    neptune.send_metric('lr', x=counter, y=decay)
 
-                
+
+
                 # Update regularizer if necessary
                 if opts['lambda_schedule'] == 'adaptive':
                     if wait_lambda >= 999 and len(losses_rec) > 0:
