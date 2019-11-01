@@ -851,24 +851,11 @@ class WAE(object):
 
             for it in range(batches_num):
 
-                if self.opts['nat_resampling'] == 'batch':
-                    self.resample_nat_targets()
-
-                # Sample batches of data points and Pz noise
-                if (self.opts['feed_by_score_from_epoch'] != -1) and (self.opts['feed_by_score_from_epoch'] <= epoch+1):
-                    data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
-                elif self.opts['shuffle']:
-                    assert opts['recalculate_size']>=opts['batch_size'], "recalculate_size must be as large as batch_size"
-                    all_data_ids = np.random.choice(self.train_size, opts['recalculate_size'], replace=False)
-                    data_ids = all_data_ids[:opts['batch_size']]
-                else:
-                    rnd_it = random.randint(0, batches_num-1)
-                    data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
-
-
-                data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
+                data_ids = np.random.choice(
+                    self.train_size, opts['batch_size'], replace=False)
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
+
 
                 if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
@@ -892,7 +879,7 @@ class WAE(object):
                     self.ot_lambda: ot_lambda,
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
-                    self.batch_indices_mod: data_ids_mod}
+                    self.batch_indices_mod: data_ids}
 
                 if self.sparsifier is not None:
                     if (self.opts['sparsifier_freq'] is None) or (it % self.opts['sparsifier_freq'] == 0):
@@ -957,7 +944,7 @@ class WAE(object):
                                    self.is_training: True})
                
 
-                self.recalculate_x_latents(data, self.train_size, opts['recalculate_size'], overwrite_placeholder=True, ids=all_data_ids)
+                self.recalculate_x_latents(data, self.train_size, opts['recalculate_size'], overwrite_placeholder=True, ids=data_ids)
 
 
                 self.x_rec_losses_np[data_ids] = per_sample_rec_loss_np
