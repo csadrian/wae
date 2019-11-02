@@ -37,7 +37,7 @@ parser.add_argument("--w_aef",
                     help='weight of ae fixedpoint cost',
                     type=float)
 parser.add_argument("--z_test",
-                    help='method of choice for verifying Pz=Qz [mmd/gan]')
+                    help='method of choice for verifying Pz=Qz [mmd/mmd_linear/gan/sinkhorn]')
 parser.add_argument("--pz",
                     help='Prior latent distribution [normal/sphere/uniform]')
 parser.add_argument("--wae_lambda", help='WAE regularizer', type=float)
@@ -57,28 +57,32 @@ parser.add_argument("--checkpoint",
                     help='full path to the checkpoint file without extension')
 parser.add_argument("--batch_size", dest="batch_size", type=int, help="batch_size")
 
-parser.add_argument('--mmd_or_sinkhorn', dest='mmd_or_sinkhorn', type=str, default='sinkhorn', help='Use mmd or sinkhorn as metric [mmd/sinkhorn]')
-parser.add_argument('--mmd_linear', dest='mmd_linear', type=str, default=True, help='Use linear time mmd')
+# More params for training
+parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
+parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
+parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
+parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
+parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, help='Lambda for reconstruction loss')
+parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
+parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
+parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
+
+# Params for global z_tests
+parser.add_argument('--z_test_scope', dest='z_test_scope', type=str, default='local', help='Scope of the z_test, can be: batch, nat')
+parser.add_argument('--nat_size', dest='nat_size', type=int, default=None, help='NAT size')
+parser.add_argument('--nat_resampling', dest='nat_resampling', type=str, default=None, help='NAT resampling mode, can be: epoch, batch or None')
+parser.add_argument('--recalculate_size', dest='recalculate_size', type=int, default=None, help='No. of points to be recalculated each iter')
+
+# Params for z_test sinkhorn
 parser.add_argument('--sinkhorn_sparse', dest='sinkhorn_sparse', type=str2bool, default=False, help='Whether Sinkhorn is run on a sparsified cost matrix')
 parser.add_argument('--sinkhorn_sparsifier', dest='sinkhorn_sparsifier', type=str, default=None, help='Sinkhorn sparsifier fn')
 parser.add_argument('--sparsifier_freq', dest='sparsifier_freq', type=int, default=None, help='Recalculate sparsified indices on every nth batch.')
 parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, default=0.01, help='The epsilon for entropy regularized Sinkhorn')
 parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
-parser.add_argument('--train_size', dest='train_size', type=int, default=None, help='Truncates train set to train_size')
-parser.add_argument('--nat_size', dest='nat_size', type=int, default=None, help='NAT size')
-parser.add_argument('--nat_resampling', dest='nat_resampling', type=str, default=None, help='NAT resampling mode, can be: epoch, batch or None')
-parser.add_argument('--ot_lambda', dest='ot_lambda', type=float, default=0.0, help='Lambda for NAT OT loss')
-parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, help='Lambda for reconstruction loss')
+
+# Params for extra regularizers
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
-parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
-parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
-parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
-parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
-parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
-parser.add_argument('--nat_sparse_indices_num', dest='nat_sparse_indices_num', type=int, default=1000, help='Number of sparse indices')
-parser.add_argument('--matching_penalty_scope', dest='matching_penalty_scope', type=str, default='batch', help='Matching penalty scope, can by: batch, nat')
-parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
-parser.add_argument('--recalculate_size', dest='recalculate_size', type=int, help='No. of points to be recalculated each iter')
+
 
 FLAGS = parser.parse_args()
 
@@ -147,10 +151,10 @@ def main():
         opts['lambda'] = FLAGS.wae_lambda
     if FLAGS.enc_noise is not None:
         opts['e_noise'] = FLAGS.enc_noise
+    if FLAGS.z_test_scope is not None:
+        opts['z_test_scope'] = FLAGS.z_test_scope
 
 
-    if FLAGS.ot_lambda is not None:
-        opts['ot_lambda'] = FLAGS.ot_lambda
     if FLAGS.rec_lambda is not None:
         opts['rec_lambda'] = FLAGS.rec_lambda
     if FLAGS.zxz_lambda is not None:
@@ -162,16 +166,11 @@ def main():
     else:
         opts['nat_size'] = FLAGS.train_size
     opts['nat_resampling'] = FLAGS.nat_resampling
-    if FLAGS.nat_sparse_indices_num is not None:
-        opts['nat_sparse_indices_num'] = FLAGS.nat_sparse_indices_num
 
-    opts['mmd_or_sinkhorn'] = FLAGS.mmd_or_sinkhorn
-    opts['mmd_linear'] = FLAGS.mmd_linear
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
-    opts['matching_penalty_scope']=FLAGS.matching_penalty_scope
     opts['recalculate_size'] = FLAGS.recalculate_size
 
     if FLAGS.sinkhorn_iters is not None:

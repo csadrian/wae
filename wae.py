@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import io
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 import plot_syn
+from collections import OrderedDict
 
 class WAE(object):
 
@@ -40,6 +41,8 @@ class WAE(object):
         self.opts = opts
         self.train_size = train_size
         self.nat_pos = 0
+
+        self.tensors_to_log = OrderedDict()
 
         # -- Some of the parameters for future use
 
@@ -55,7 +58,6 @@ class WAE(object):
         self.sample_size = sample_size
 
         self.add_nat_placeholders()
-
 
         # -- Transformation ops
 
@@ -95,22 +97,16 @@ class WAE(object):
 
         # -- Objectives, losses, penalties
 
+        self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
-
-        if opts['ot_lambda'] == 0.0:
-            self.ot_loss = 0.0
 
         self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
 
-        if opts['mmd_or_sinkhorn']=='sinkhorn':
-            self.ot_loss = self.sinkhorn_loss()
-        elif opts['mmd_or_sinkhorn']=='mmd':
-            self.ot_loss = self.global_mmd_loss()
+        self.rec_grad = tf.reduce_mean(tf.abs(tf.gradients(self.loss_reconstruct, [self.encoded])))
 
         self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
-                self.ot_lambda * self.ot_loss + \
                 self.wae_lambda * self.penalty
 
         # Extra costs if any
@@ -132,6 +128,16 @@ class WAE(object):
         self.add_savers()
         self.init = tf.global_variables_initializer()
 
+    def add_to_log(self, key, value):
+        self.tensors_to_log[key] = value
+
+    def get_tensors_to_log(self):
+        keys = ['sinkhorn_ot', 'mmd_linear', 'mmd']  
+        for key in keys:
+            if key not in self.tensors_to_log:
+                self.tensors_to_log[key] = tf.constant(0.0)
+        return self.tensors_to_log
+
     def add_nat_placeholders(self):
         opts = self.opts
         # TODO implement options: spherical, etc..
@@ -142,6 +148,15 @@ class WAE(object):
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
         self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(None, 2)) #opts['nat_sparse_indices_num']
         self.x_rec_losses_np = 100000.0*np.ones((self.train_size,)) #tf.Variable(100000.0*tf.ones((self.train_size, )), dtype=tf.float32, trainable=False)
+
+    def add_nat_tensors(self):
+        opts = self.opts
+        n = opts['nat_size']
+
+        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
+        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
+        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
+        self.x_latents_with_current_batch = x_latents_with_current_batch
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
@@ -162,14 +177,12 @@ class WAE(object):
         decay = tf.placeholder(tf.float32, name='rate_decay_ph')
         wae_lambda = tf.placeholder(tf.float32, name='lambda_ph')
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
-        ot_lambda = tf.placeholder(tf.float32, name='ot_lambda_ph')
         rec_lambda = tf.placeholder(tf.float32, name='rec_lambda_ph')
         zxz_lambda = tf.placeholder(tf.float32, name='zxz_lambda_ph')
 
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
-        self.ot_lambda = ot_lambda
         self.rec_lambda = rec_lambda
         self.zxz_lambda = zxz_lambda
 
@@ -177,45 +190,22 @@ class WAE(object):
         #self.values_for_update_ph = tf.placeholder(tf.float32, shape=(self.opts['batch_size'])
         #self.update_latents_op = tf.scatter_update(self.x_latents, self.ids_to_update_ph, latents)
 
-    def global_mmd_loss(self):
+    def sinkhorn_loss(self, sample_qz, sample_pz):
         opts = self.opts
-        sample_qz = self.encoded
-
-        n = opts['nat_size']
-
-        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
-        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
-        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
-
-        if opts['mmd_linear']:
-            mmd = self.mmd_linear(x_latents_with_current_batch, self.nat_targets)
-        else:
-            mmd = self.mmd_penalty(x_latents_with_current_batch, self.nat_targets)
-
-        return mmd
-
-    def sinkhorn_loss(self):
-        opts = self.opts
-        sample_qz = self.encoded
 
         #global_step = tf.train.get_or_create_global_step()
         #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
 
-        n = opts['nat_size']
-
-        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
-        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
-        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
-        self.x_latents_with_current_batch = x_latents_with_current_batch
-
-        niter=opts['sinkhorn_iters']
         if opts['sinkhorn_sparse']:
-            OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+            OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(sample_qz, sample_pz, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
-            OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+            OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         self.P = P
         self.C = C
+
+        self.add_to_log("sinkhorn_ot", OT)
+
         return OT
 
     def zxz_loss(self):
@@ -315,7 +305,7 @@ class WAE(object):
     def matching_penalty(self):
         opts = self.opts
         loss_gan = None
-        if opts['matching_penalty_scope'] == 'nat':
+        if opts['z_test_scope'] == 'global':
             sample_qz = self.x_latents_with_current_batch
             sample_pz = self.nat_targets
         else:
@@ -326,12 +316,16 @@ class WAE(object):
             loss_gan, loss_match = self.gan_penalty(sample_qz, sample_pz)
         elif opts['z_test'] == 'mmd':
             loss_match = self.mmd_penalty(sample_qz, sample_pz)
+        elif opts['z_test'] == 'mmd_linear':
+            mmd = self.mmd_linear(sample_qz, sample_pz)
         elif opts['z_test'] == 'mmdpp':
             loss_match = improved_wae.mmdpp_penalty(
                 opts, self, sample_pz)
         elif opts['z_test'] == 'mmdppp':
             loss_match = improved_wae.mmdpp_1d_penalty(
                 opts, self, sample_pz)
+        elif opts['z_test'] == 'sinkhorn':
+            loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
         return loss_match, loss_gan
@@ -405,6 +399,9 @@ class WAE(object):
                 res2 += C / (C + cross_distances_2)
                 res2 = tf.reduce_sum(res2) / half
                 stat += res1 - res2
+
+        self.add_to_log("mmd_linear", stat)
+
         return stat
 
 
@@ -485,6 +482,9 @@ class WAE(object):
                 res2 = C / (C + distances)
                 res2 = tf.reduce_sum(res2) * 2. / (nf * nf)
                 stat += res1 - res2
+
+        self.add_to_log("mmd", stat)
+
         return stat
 
     def gan_penalty(self, sample_qz, sample_pz):
@@ -782,11 +782,9 @@ class WAE(object):
         counter = 0
         decay = 1.
         wae_lambda = opts['lambda']
-        ot_lambda = opts['ot_lambda']
         rec_lambda = opts['rec_lambda']
         zxz_lambda = opts['zxz_lambda']
         batch_size = opts['batch_size']
-
 
 
         # Weights of the extra costs
@@ -857,6 +855,7 @@ class WAE(object):
                 # Sample batches of data points and Pz noise
                 if (self.opts['feed_by_score_from_epoch'] != -1) and (self.opts['feed_by_score_from_epoch'] <= epoch+1):
                     data_ids = np.argpartition(self.x_rec_losses_np, -opts['batch_size'])[-opts['batch_size']:]
+                    all_data_ids = np.random.choice(self.train_size, opts['recalculate_size'], replace=False)
                 elif self.opts['shuffle']:
                     assert opts['recalculate_size']>=opts['batch_size'], "recalculate_size must be as large as batch_size"
                     all_data_ids = np.random.choice(self.train_size, opts['recalculate_size'], replace=False)
@@ -889,7 +888,6 @@ class WAE(object):
                     self.sample_noise: batch_noise,
                     self.lr_decay: decay,
                     self.wae_lambda: wae_lambda,
-                    self.ot_lambda: ot_lambda,
                     self.rec_lambda: rec_lambda,
                     self.is_training: True,
                     self.batch_indices_mod: data_ids_mod}
@@ -899,36 +897,33 @@ class WAE(object):
                         self.nat_sparse_indices_np = self.sparsifier.indices()
                     feed_d[self.nat_sparse_indices] = self.nat_sparse_indices_np
 
-                print('wae_lambda: ', wae_lambda, ', ot_lambda: ', ot_lambda, ', rec_lambda: ', rec_lambda)
-
                 #ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
 
                 for (ph, val) in extra_cost_weights:
                     feed_d[ph] = val
 
-                if opts['mmd_or_sinkhorn']=='sinkhorn':
+                run_ops = [
+                    self.ae_opt,
+                    self.wae_objective,
+                    self.loss_reconstruct,
+                    self.penalty,
+                    self.per_sample_rec_loss,
+                    #self.rec_grad, self.latent_grad
+                ]
+                len_orig_run_ops = len(run_ops)
+                for key, value in self.get_tensors_to_log().items():
+                    run_ops.append(value)
 
+                run_result = self.sess.run(run_ops, feed_dict=feed_d)
+                [_, loss, loss_rec, loss_match, per_sample_rec_loss_np] = run_result[:len_orig_run_ops]
 
-                    [_, loss, loss_rec, loss_match, loss_ot, P_np, per_sample_rec_loss_np] = self.sess.run(
-                        [self.ae_opt,
-                         self.wae_objective,
-                         self.loss_reconstruct,
-                         self.penalty,
-                         self.ot_loss,
-                         self.P,
-                         self.per_sample_rec_loss],
-                         feed_dict=feed_d)
+                run_result_dict = {}
+                i = 0
+                for key, value in self.get_tensors_to_log().items():
+                    run_result_dict[key] = run_result[len_orig_run_ops+i]
+                    i += 1
 
-                elif opts['mmd_or_sinkhorn']=='mmd':
-
-                    [_, loss, loss_rec, loss_match, loss_ot, per_sample_rec_loss_np] = self.sess.run(
-                        [self.ae_opt,
-                         self.wae_objective,
-                         self.loss_reconstruct,
-                         self.penalty,
-                         self.ot_loss,
-                         self.per_sample_rec_loss],
-                         feed_dict=feed_d)
+                #wae_lambda = 0.0001*np.abs(rec_grad_np) / np.abs(global_grad_np)
 
                 if zxz_lambda != 0.0:
                     _, zxz_loss_np = self.sess.run([self.zxz_opt, self.zxz_loss], feed_dict={self.zxz_lambda: zxz_lambda, self.sample_noise: batch_noise, self.lr_decay: decay, self.is_training: True})
@@ -984,30 +979,22 @@ class WAE(object):
                 losses_rec.append(loss_rec)
                 losses_match.append(loss_match)
                 if opts['verbose']:
-                    logging.error('Matching penalty after %d steps: %f, ot loss: %f' % (
-                        counter, losses_match[-1], loss_ot))
+                    logging.error('Matching penalty after %d steps: %f' % (
+                        counter, losses_match[-1]))
 
 
                 if 'NEPTUNE_API_TOKEN' in os.environ:
-                    if opts['mmd_or_sinkhorn']=='sinkhorn':
-                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
-                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
-                        neptune.send_metric('loss_ot', x=counter, y=loss_ot)
-                        neptune.send_metric('loss', x=counter, y=loss)
-                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
-                        neptune.send_metric('ot_lambda', x=counter, y=ot_lambda)
-                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
-                        neptune.send_metric('lr', x=counter, y=decay)
+                    for k, v in run_result_dict.items():
+                        neptune.send_metric(k, x=counter, y=v)
 
-                    if opts['mmd_or_sinkhorn']=='mmd':
-                        neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
-                        neptune.send_metric('loss_rec', x=counter, y=loss_rec)
-                        neptune.send_metric('loss_mmd', x=counter, y=loss_ot)
-                        neptune.send_metric('loss', x=counter, y=loss)
-                        neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
-                        neptune.send_metric('mmd_lambda', x=counter, y=ot_lambda)
-                        neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
-                        neptune.send_metric('lr', x=counter, y=decay)
+                    neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
+                    neptune.send_metric('loss_rec', x=counter, y=loss_rec)
+                    neptune.send_metric('loss', x=counter, y=loss)
+                    neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
+                    neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                    neptune.send_metric('lr', x=counter, y=decay)
+                    #neptune.send_metric('rec_grad_np', x=counter, y=rec_grad_np)
+                    #neptune.send_metric('global_grad_np', x=counter, y=global_grad_np)
 
                 
                 # Update regularizer if necessary
