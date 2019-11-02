@@ -952,7 +952,7 @@ class WAE(object):
                                    self.is_training: True})
                
 
-                self.recalculate_x_latents(data, self.train_size, opts['recalculate_size'], overwrite_placeholder=True, ids=all_data_ids)
+                self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
 
 
                 self.x_rec_losses_np[data_ids] = per_sample_rec_loss_np
