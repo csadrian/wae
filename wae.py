@@ -412,7 +412,7 @@ class WAE(object):
         n = utils.get_batch_size(sample_qz)
         n = tf.cast(n, tf.int32)
         nf = tf.cast(n, tf.float32)
-        half_size = (n * n - n) / 2
+        half_size = (n * n - n) // 2
 
         norms_pz = tf.reduce_sum(tf.square(sample_pz), axis=1, keep_dims=True)
         dotprods_pz = tf.matmul(sample_pz, sample_pz, transpose_b=True)
