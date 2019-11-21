@@ -58,6 +58,7 @@ parser.add_argument("--checkpoint",
 parser.add_argument("--batch_size", dest="batch_size", type=int, help="batch_size")
 
 # More params for training
+parser.add_argument('--seed', dest='seed', type=int, default=None, help='Sets the random number seed')
 parser.add_argument('--name', dest='name', type=str, default="experiment", help='Name of the experiment')
 parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=30, help='Number of epochs to train for')
 parser.add_argument('--e_pretrain', dest='e_pretrain', type=str2bool, default=True, help='Pretrain or not.')
@@ -118,6 +119,7 @@ def main():
         assert False, 'Unknown experiment configuration'
 
     opts['exp'] = FLAGS.exp
+    opts['seed'] = FLAGS.seed
 
     opts['mode'] = FLAGS.mode
     if opts['mode'] == 'test':

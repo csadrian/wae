@@ -37,6 +37,10 @@ class WAE(object):
 
         logging.error('Building the Tensorflow Graph')
 
+        logging.info('Setting seed to: ' + str(opts['seed']))
+        tf.set_random_seed(opts['seed'])
+        np.random.seed(opts['seed'])
+
         self.sess = tf.Session()
         self.opts = opts
         self.train_size = train_size
