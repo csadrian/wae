@@ -477,15 +477,17 @@ class WAE(object):
                 #               = const * zdim
                 Cbase = opts['zdim']
             stat = 0.
-            for scale in [.1, .2, .5, 1., 2., 5., 10.]:
-                C = Cbase * scale
-                res1 = C / (C + distances_qz)
-                res1 += C / (C + distances_pz)
-                res1 = tf.multiply(res1, 1. - tf.eye(n))
-                res1 = tf.reduce_sum(res1) / (nf * nf - nf)
-                res2 = C / (C + distances)
-                res2 = tf.reduce_sum(res2) * 2. / (nf * nf)
-                stat += res1 - res2
+
+            with tf.device('/gpu:1'):
+                for scale in [.1, .2, .5, 1., 2., 5., 10.]:
+                    C = Cbase * scale
+                    res1 = C / (C + distances_qz)
+                    res1 += C / (C + distances_pz)
+                    res1 = tf.multiply(res1, 1. - tf.eye(n))
+                    res1 = tf.reduce_sum(res1) / (nf * nf - nf)
+                    res2 = C / (C + distances)
+                    res2 = tf.reduce_sum(res2) * 2. / (nf * nf)
+                    stat += res1 - res2
 
         self.add_to_log("mmd", stat)
 
@@ -824,6 +826,12 @@ class WAE(object):
                     decay = decay / 5.
                 if epoch == 100:
                     decay = decay / 10.
+            elif opts['lr_schedule'] == 'manual_proportional':
+                enum = opts['epoch_num']
+                if epoch == 3* epoch_num//10:
+                    decay = decay / 2.
+                if epoch == epoch_num//2:
+                    decay = decay / 5.
             elif opts['lr_schedule'] == "manual_smooth":
                 enum = opts['epoch_num']
                 decay_t = np.exp(np.log(100.) / enum)
