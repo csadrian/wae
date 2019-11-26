@@ -95,9 +95,30 @@ for z_test in {'mmd', 'sinkhorn'}:
 
 tables = np.stack(tables)
 tables = [item for sublist in tables for item in sublist]
-#print(tables)
 
-#print(improved_results)
+
+#color_dict = {('mmd', 'global'): 'blue', ('mmd', 'local'): 'red', ('sinkhorn', 'global'): 'green',  ('sinkhorn', 'local'): 'yellow'}
+
+fig, ax = plt.subplots()
+mmd_global = np.array([[result[1], result[2]] for result in results if result[0]['z_test']=='mmd' and result[0]['z_test_scope']=='global'])
+mmd_local = np.array([[result[1], result[2]] for result in results if result[0]['z_test']=='mmd' and result[0]['z_test_scope']=='local'])
+sinkhorn_global = np.array([[result[1], result[2]] for result in results if result[0]['z_test']=='sinkhorn' and result[0]['z_test_scope']=='global'])
+sinkhorn_local = np.array([[result[1], result[2]] for result in results if result[0]['z_test']=='sinkhorn' and result[0]['z_test_scope']=='local'])
+
+ax.scatter(mmd_global[:, 1], mmd_global[:, 0], c = 'blue')
+ax.scatter(mmd_local[:, 1], mmd_local[:, 0], c = 'red')
+ax.scatter(sinkhorn_global[:, 1], sinkhorn_global[:, 0], c = 'green')
+ax.scatter(sinkhorn_local[:, 1], sinkhorn_local[:, 0], c = 'yellow')
+
+'''
+for i in range(len(results)):
+  ax.scatter(x = results[i][2], y = results[i][1],
+              c = color_dict[(results[i][0]['z_test'], results[i][0]['z_test_scope'])])
+'''
+
+plt.legend(['mmd_global', 'mmd_local', 'sinkhorn_global', 'sinkhorn_local'])
+plt.savefig('Scatter_plt.png')
+
 
 '''
 best_covered = pd.DataFrame(improved_results, columns = ['z_test', 'z_test_scope', 'covered_area', 'lambda'])
@@ -105,9 +126,8 @@ print(best_covered.to_latex())
 #print(best_covered)
 '''
 
+'''
 points = pd.DataFrame(tables, columns = ['area', 'rec', 'param'])
-points.plot.scatter(x = 'rec', y = 'area', c = 'param', colormap = 'magma')
-plt.savefig("Scatter.png")
-
-
-
+points.plot.scatter(x = 'rec', y = 'area', c = 'param', colormap = 'Set1')
+plt.savefig("Scatter2.png")
+'''
