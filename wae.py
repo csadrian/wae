@@ -104,7 +104,9 @@ class WAE(object):
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
 
-        self.penalty, self.loss_gan = self.matching_penalty()
+        with tf.device('/gpu:1'):
+             self.penalty, self.loss_gan = self.matching_penalty()
+
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
 
@@ -478,7 +480,6 @@ class WAE(object):
                 Cbase = opts['zdim']
             stat = 0.
 
-          # with tf.device('/gpu:1'):
             for scale in [.1, .2, .5, 1., 2., 5., 10.]:
                 C = Cbase * scale
                 res1 = C / (C + distances_qz)
