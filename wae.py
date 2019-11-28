@@ -104,7 +104,7 @@ class WAE(object):
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
 
-        with tf.device('/gpu:1'):
+        with tf.device('/gpu:0'):
              self.penalty, self.loss_gan = self.matching_penalty()
 
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
@@ -888,7 +888,7 @@ class WAE(object):
                     frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=1.5, edges=False)
                     video.write_frame(frame)
                     print("frame")
-                    if opts['exp'] == 'checkers':
+                    if opts['zdim'] == 2:
                         import synth_data
                         covered = synth_data.covered_area(x_latents_np, resolution=400, radius=5)
                         print("covered_area", x_latents_np.shape, covered)
