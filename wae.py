@@ -1027,7 +1027,7 @@ class WAE(object):
 
                 # Print debug info
 
-                if counter % opts['print_every'] == 0:
+                if 50*counter % opts['print_every'] == 0:
                     now = time.time()
 
                     # Auto-encoding test images
@@ -1045,6 +1045,9 @@ class WAE(object):
                         encoding_changes.append(changes)
 
                     enc_test_prev = enc_test
+
+                    global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets), feed_dict={self.is_training: False})
+
 
                     # Auto-encoding training images
 
@@ -1151,6 +1154,7 @@ class WAE(object):
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
+                        neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
                         neptune.send_image('summary_plot', summary_plot)
 
