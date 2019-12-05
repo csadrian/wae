@@ -103,7 +103,7 @@ class WAE(object):
 
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
-        with tf.device('/gpu:1'):
+        with tf.device('/gpu:0'):
             self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
@@ -330,9 +330,26 @@ class WAE(object):
                 opts, self, sample_pz)
         elif opts['z_test'] == 'sinkhorn':
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+        elif opts['z_test'] == 'sliced_wae_loss':
+            loss_match = self.sliced_wae_loss(sample_qz, sample_pz)
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
         return loss_match, loss_gan
+
+
+    def sliced_wae_loss(self, sample_qz, sample_pz):
+        L = 50 #number of projections
+        endim = opts['zdim']
+
+        theta=np.asarray[w/np.sqrt((w**2).sum()) for w in np.random.normal(size=(L,endim))]
+        n = utils.get_batch_size(sample_qz)
+        theta=tf.Variable(theta)
+
+        proj_pz = tf.tensordot(sample_pz, tf.transpose(theta))
+        proj_qz = tf.tensordot(sample_qz, tf.transpose(theta))
+
+        W2=(tf.nn.top_k(tf.transpose(proj_pz),k=batchsize).values
+           - tf.nn.top_k(tf.transpose(proj_qz),k=batchsize).values)**2
 
 
     def mmd_linear(self, sample_qz, sample_pz):
@@ -478,16 +495,16 @@ class WAE(object):
                 Cbase = opts['zdim']
             stat = 0.
 
-          # with tf.device('/gpu:1'):
-            for scale in [.1, .2, .5, 1., 2., 5., 10.]:
-                C = Cbase * scale
-                res1 = C / (C + distances_qz)
-                res1 += C / (C + distances_pz)
-                res1 = tf.multiply(res1, 1. - tf.eye(n))
-                res1 = tf.reduce_sum(res1) / (nf * nf - nf)
-                res2 = C / (C + distances)
-                res2 = tf.reduce_sum(res2) * 2. / (nf * nf)
-                stat += res1 - res2
+            with tf.device('/gpu:1'):
+                for scale in [.1, .2, .5, 1., 2., 5., 10.]:
+                    C = Cbase * scale
+                    res1 = C / (C + distances_qz)
+                    res1 += C / (C + distances_pz)
+                    res1 = tf.multiply(res1, 1. - tf.eye(n))
+                    res1 = tf.reduce_sum(res1) / (nf * nf - nf)
+                    res2 = C / (C + distances)
+                    res2 = tf.reduce_sum(res2) * 2. / (nf * nf)
+                    stat += res1 - res2
 
         self.add_to_log("mmd", stat)
 
