@@ -330,7 +330,7 @@ class WAE(object):
                 opts, self, sample_pz)
         elif opts['z_test'] == 'sinkhorn':
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
-        elif opts['z_test'] == 'sliced_wae_loss':
+        elif opts['z_test'] == 'sliced_wae':
             loss_match = self.sliced_wae_loss(sample_qz, sample_pz)
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
@@ -341,7 +341,7 @@ class WAE(object):
         L = 50 #number of projections
         endim = opts['zdim']
 
-        theta=np.asarray[w/np.sqrt((w**2).sum()) for w in np.random.normal(size=(L,endim))]
+        theta=np.asarray([w/np.sqrt((w**2).sum()) for w in np.random.normal(size=(L,endim))])
         n = utils.get_batch_size(sample_qz)
         theta=tf.Variable(theta)
 
