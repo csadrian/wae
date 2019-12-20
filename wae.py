@@ -265,7 +265,8 @@ class WAE(object):
             ))
 
         new_positions = self.encoded[bs // 2:]
-        stay_loss = tf.reduce_sum(tf.square(new_positions - old_positions))
+       # stay_loss = tf.reduce_sum(tf.square(new_positions - old_positions))
+        stay_loss = tf.abs(tf.reduce_sum(new_positions-old_positions))
 
         self.P = P
         self.C = C
