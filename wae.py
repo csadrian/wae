@@ -104,14 +104,20 @@ class WAE(object):
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
 
-        self.penalty, self.loss_gan = self.matching_penalty()
+        self.penalty, self.stay_loss, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
 
         self.rec_grad = tf.reduce_mean(tf.abs(tf.gradients(self.loss_reconstruct, [self.encoded])))
 
-        self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
+        if self.stay_loss == None:
+            self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
                 self.wae_lambda * self.penalty
+        else:
+            stay_lambda = opts['stay_lambda']
+            self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
+                self.wae_lambda * self.penalty + \
+                stay_lambda * self.stay_loss
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -212,6 +218,61 @@ class WAE(object):
 
         return OT
 
+
+    def sinkhorn_loss_with_stay(self, sample_qz, sample_pz):
+        opts = self.opts
+
+        #global_step = tf.train.get_or_create_global_step()
+        #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
+        decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
+
+        n = opts['nat_size']
+        bs = opts['batch_size']
+       # stay_lambda = opts['stay_lambda']
+
+        movers  = self.batch_indices_mod[:bs // 2]
+        stayers = self.batch_indices_mod[bs // 2:]
+
+        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents,
+            tf.sparse_to_dense(
+                sparse_indices=movers,
+                default_value=1.0,
+                sparse_values=0.0,
+                output_shape=[n], validate_indices=False
+                )
+            ))
+        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, 
+            self.encoded[:bs // 2]], axis=0)
+        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
+        self.x_latents_with_current_batch = x_latents_with_current_batch
+
+        niter=opts['sinkhorn_iters']
+        if opts['sinkhorn_sparse']:
+            raise Exception("move-stay unimplemented")
+            OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        else:
+
+            OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+
+        # no smart indexing, cannot write old_positions = self.x_latents[stayers]
+        old_positions = tf.stop_gradient(tf.boolean_mask(self.x_latents,
+            tf.sparse_to_dense(
+                sparse_indices=stayers,
+                default_value=0.0,
+                sparse_values=1.0,
+                output_shape=[n], validate_indices=False
+                )
+            ))
+
+        new_positions = self.encoded[bs // 2:]
+        stay_loss = tf.reduce_sum(tf.square(new_positions - old_positions))
+
+        self.P = P
+        self.C = C
+        return OT, stay_loss
+
+
+
     def zxz_loss(self):
         opts = self.opts
 
@@ -309,6 +370,7 @@ class WAE(object):
     def matching_penalty(self):
         opts = self.opts
         loss_gan = None
+        stay_loss = None
         if opts['z_test_scope'] == 'global':
             sample_qz = self.x_latents_with_current_batch
             sample_pz = self.nat_targets
@@ -330,9 +392,11 @@ class WAE(object):
                 opts, self, sample_pz)
         elif opts['z_test'] == 'sinkhorn':
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+        elif opts['z_test'] == 'sinkhorn_stay_loss':
+            loss_match, stay_loss = self.sinkhorn_loss_with_stay(sample_qz, sample_pz)
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
-        return loss_match, loss_gan
+        return loss_match, stay_loss, loss_gan
 
 
     def mmd_linear(self, sample_qz, sample_pz):
@@ -919,6 +983,7 @@ class WAE(object):
                     self.wae_objective,
                     self.loss_reconstruct,
                     self.penalty,
+                    self.stay_loss,
                     self.per_sample_rec_loss,
                     #self.rec_grad, self.latent_grad
                 ]
@@ -927,7 +992,7 @@ class WAE(object):
                     run_ops.append(value)
 
                 run_result = self.sess.run(run_ops, feed_dict=feed_d)
-                [_, loss, loss_rec, loss_match, per_sample_rec_loss_np] = run_result[:len_orig_run_ops]
+                [_, loss, loss_rec, loss_match, stay_loss, per_sample_rec_loss_np] = run_result[:len_orig_run_ops]
 
                 run_result_dict = {}
                 i = 0
@@ -1002,6 +1067,7 @@ class WAE(object):
                     neptune.send_metric('loss_wae_matching', x=counter, y=loss_match)
                     neptune.send_metric('loss_rec', x=counter, y=loss_rec)
                     neptune.send_metric('loss', x=counter, y=loss)
+                    neptune.send_metric('stay_loss', x=counter, y=stay_loss)
                     neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
                     neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
                     neptune.send_metric('lr', x=counter, y=decay)

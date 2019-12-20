@@ -83,7 +83,7 @@ parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default
 
 # Params for extra regularizers
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
-
+parser.add_argument('--stay_lambda', dest='stay_lambda', type=float, default=0.0, help='Lambda for stay loss.')
 
 FLAGS = parser.parse_args()
 
@@ -174,6 +174,7 @@ def main():
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['recalculate_size'] = FLAGS.recalculate_size
+    opts['stay_lambda'] = FLAGS.stay_lambda
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
