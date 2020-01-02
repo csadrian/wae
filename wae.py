@@ -1047,7 +1047,7 @@ class WAE(object):
                     enc_test_prev = enc_test
 
                     with tf.device('/gpu:0'):
-                        global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.x_latents_with_current_batch, self.nat_targets),
+                        global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
                             feed_dict={self.sample_points: data.data[:self.num_pics],
                                        self.is_training: False})
 
