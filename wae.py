@@ -893,9 +893,9 @@ class WAE(object):
                     decay = decay / 10.
             elif opts['lr_schedule'] == 'manual_proportional':
                 enum = opts['epoch_num']
-                if epoch == 3* epoch_num//10:
+                if epoch == 3* enum//10:
                     decay = decay / 2.
-                if epoch == epoch_num//2:
+                if epoch == enum//2:
                     decay = decay / 5.
             elif opts['lr_schedule'] == "manual_smooth":
                 enum = opts['epoch_num']
