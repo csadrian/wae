@@ -176,7 +176,10 @@ def main():
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['recalculate_size'] = FLAGS.recalculate_size
     opts['stay_lambda'] = FLAGS.stay_lambda
-    opts['mover_ratio']=FLAGS.mover_ratio
+
+    opts['mover_ratio'] = FLAGS.mover_ratio
+    assert opts['mover_ratio'] >= 0 and opts['mover_ratio']<=1, "mover_ratio must be in [0,1]"
+
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
