@@ -103,7 +103,7 @@ class WAE(object):
 
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
-        with tf.device('/gpu:1'):
+        with tf.device('/gpu:0'):
             self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
@@ -1046,8 +1046,8 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
-                    with tf.device('/gpu:1'):
-                        global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
+                    with tf.device('/gpu:0'):
+                        global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.x_latents_with_current_batch, self.nat_targets),
                             feed_dict={self.sample_points: data.data[:self.num_pics],
                                        self.is_training: False})
 
