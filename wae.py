@@ -338,19 +338,25 @@ class WAE(object):
 
 
     def sliced_wae_loss(self, sample_qz, sample_pz):
-        L = 50 #number of projections
+        opts = self.opts
+        L = 250 #number of projections
         endim = opts['zdim']
 
         theta=np.asarray([w/np.sqrt((w**2).sum()) for w in np.random.normal(size=(L,endim))])
-        n = utils.get_batch_size(sample_qz)
-        theta=tf.Variable(theta)
+        k = utils.get_batch_size(sample_qz)
+        k = tf.cast(k, tf.int32)
+        theta = tf.Variable(theta)
+        theta = tf.cast(theta, tf.float32)
 
-        proj_pz = tf.tensordot(sample_pz, tf.transpose(theta))
-        proj_qz = tf.tensordot(sample_qz, tf.transpose(theta))
+        proj_pz = tf.matmul(sample_pz, tf.transpose(theta))
+        proj_qz = tf.matmul(sample_qz, tf.transpose(theta))
 
-        W2=(tf.nn.top_k(tf.transpose(proj_pz),k=batchsize).values
-           - tf.nn.top_k(tf.transpose(proj_qz),k=batchsize).values)**2
+        W2=(tf.nn.top_k(tf.transpose(proj_pz),k).values
+           - tf.nn.top_k(tf.transpose(proj_qz),k).values)**2
 
+        W2 = tf.math.reduce_sum(W2)
+
+        return W2
 
     def mmd_linear(self, sample_qz, sample_pz):
         opts = self.opts
@@ -495,7 +501,7 @@ class WAE(object):
                 Cbase = opts['zdim']
             stat = 0.
 
-            with tf.device('/gpu:1'):
+            with tf.device('/gpu:0'):
                 for scale in [.1, .2, .5, 1., 2., 5., 10.]:
                     C = Cbase * scale
                     res1 = C / (C + distances_qz)
@@ -1063,7 +1069,7 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
-                    with tf.device('/gpu:1'):
+                    with tf.device('/gpu:0'):
                         global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
                             feed_dict={self.sample_points: data.data[:self.num_pics],
                                        self.is_training: False})
