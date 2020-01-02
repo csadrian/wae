@@ -230,8 +230,8 @@ class WAE(object):
         bs = opts['batch_size']
        # stay_lambda = opts['stay_lambda']
 
-        movers  = self.batch_indices_mod[:bs // 2]
-        stayers = self.batch_indices_mod[bs // 2:]
+        movers  = self.batch_indices_mod[:bs // 10]
+        stayers = self.batch_indices_mod[bs // 10:]
 
         x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents,
             tf.sparse_to_dense(
@@ -242,7 +242,7 @@ class WAE(object):
                 )
             ))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, 
-            self.encoded[:bs // 2]], axis=0)
+            self.encoded[:bs // 10]], axis=0)
         x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
         self.x_latents_with_current_batch = x_latents_with_current_batch
 
