@@ -84,6 +84,7 @@ parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default
 # Params for extra regularizers
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
 parser.add_argument('--stay_lambda', dest='stay_lambda', type=float, default=0.0, help='Lambda for stay loss.')
+parser.add_argument('--mover_ratio', dest='mover_ratio', type=float, default=1.0, help='Ratio of movers.')
 
 FLAGS = parser.parse_args()
 
@@ -175,6 +176,7 @@ def main():
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['recalculate_size'] = FLAGS.recalculate_size
     opts['stay_lambda'] = FLAGS.stay_lambda
+    opts['mover_ratio']=FLAGS.mover_ratio
 
     if FLAGS.sinkhorn_iters is not None:
         opts['sinkhorn_iters'] = FLAGS.sinkhorn_iters
