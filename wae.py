@@ -160,15 +160,6 @@ class WAE(object):
         self.nat_sparse_indices = tf.placeholder(tf.int64, shape=(None, 2)) #opts['nat_sparse_indices_num']
         self.x_rec_losses_np = 100000.0*np.ones((self.train_size,)) #tf.Variable(100000.0*tf.ones((self.train_size, )), dtype=tf.float32, trainable=False)
 
-#    def add_nat_tensors(self):
-#        opts = self.opts
-#        n = opts['nat_size']
-
-#        x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents, tf.sparse_to_dense(sparse_indices=self.batch_indices_mod, default_value=1.0, sparse_values=0.0, output_shape=[n], validate_indices=False)))
-#        x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, self.encoded], axis=0)
-#        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
-#        self.x_latents_with_current_batch = x_latents_with_current_batch
-
     def add_nat_tensors(self):
         opts = self.opts
         n = opts['nat_size']
@@ -266,62 +257,6 @@ class WAE(object):
         self.add_to_log("sinkhorn_ot", OT)
 
         return OT
-
-
-  #  def sinkhorn_loss_with_stay(self, sample_qz, sample_pz):
-  #      opts = self.opts
-
-        #global_step = tf.train.get_or_create_global_step()
-        #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
-  #      decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
-
-  #      n = opts['nat_size']
-  #      bs = opts['batch_size']
-       # stay_lambda = opts['stay_lambda']
-
-  #      movers  = self.batch_indices_mod[:bs // 2]
-  #      stayers = self.batch_indices_mod[bs // 2:]
-
-  #      x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents,
-  #          tf.sparse_to_dense(
-  #              sparse_indices=movers,
-  #              default_value=1.0,
-  #              sparse_values=0.0,
-  #              output_shape=[n], validate_indices=False
-  #              )
-  #          ))
-  #      x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, 
-  #          self.encoded[:bs // 2]], axis=0)
-  #      x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
-  #      self.x_latents_with_current_batch = x_latents_with_current_batch
-
-  #      niter=opts['sinkhorn_iters']
-  #      if opts['sinkhorn_sparse']:
-  #          raise Exception("move-stay unimplemented")
-  #          OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(x_latents_with_current_batch, self.nat_targets, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-  #      else:
-
-  #          OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(x_latents_with_current_batch, self.nat_targets, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-
-        # no smart indexing, cannot write old_positions = self.x_latents[stayers]
-  #      old_positions = tf.stop_gradient(tf.boolean_mask(self.x_latents,
-  #          tf.sparse_to_dense(
-  #              sparse_indices=stayers,
-  #              default_value=0.0,
-  #              sparse_values=1.0,
-  #              output_shape=[n], validate_indices=False
-  #              )
-  #          ))
-
-  #      new_positions = self.encoded[bs // 2:]
-  #      stay_loss = tf.reduce_sum(tf.square(new_positions - old_positions))
-       # stay_loss = tf.abs(tf.reduce_sum(new_positions-old_positions))
-
-  #      self.P = P
-  #      self.C = C
-  #      return OT, stay_loss
-
-
 
     def zxz_loss(self):
         opts = self.opts
