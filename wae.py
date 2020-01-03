@@ -103,7 +103,6 @@ class WAE(object):
 
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
-
         self.penalty, self.loss_gan = self.matching_penalty()
         self.stay_loss = self.stay_loss()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
@@ -1096,6 +1095,10 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
+                    global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
+                        feed_dict={self.sample_points: data.test_data[:self.num_pics],
+                                   self.is_training: False})
+
                     # Auto-encoding training images
 
                     [loss_rec_train, enc_train, rec_train] = self.sess.run(
@@ -1201,6 +1204,7 @@ class WAE(object):
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
+                        neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
                         neptune.send_image('summary_plot', summary_plot)
 
