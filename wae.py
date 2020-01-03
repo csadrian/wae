@@ -103,8 +103,7 @@ class WAE(object):
 
         self.add_nat_tensors()
         self.zxz_loss = self.zxz_loss()
-        with tf.device('/gpu:0'):
-            self.penalty, self.loss_gan = self.matching_penalty()
+        self.penalty, self.loss_gan = self.matching_penalty()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
 
@@ -1046,10 +1045,9 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
-                    with tf.device('/gpu:0'):
-                        global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
-                            feed_dict={self.sample_points: data.test_data[:self.num_pics],
-                                       self.is_training: False})
+                    global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
+                        feed_dict={self.sample_points: data.test_data[:self.num_pics],
+                                   self.is_training: False})
 
                     # Auto-encoding training images
 
