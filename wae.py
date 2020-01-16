@@ -30,6 +30,7 @@ import io
 from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
 import plot_syn
 from collections import OrderedDict
+from scipy.stats import norm
 
 class WAE(object):
 
@@ -931,15 +932,19 @@ class WAE(object):
                 if True:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
                     print("frame,", nat_targets_np.shape)
-                    frame = sinkhorn.draw_edges(x_latents_np, nat_targets_np, VIDEO_SIZE, radius=1.5, edges=False)
+                    x_latents_unif = x_latents_np[:, :2]
+                    nat_targets_unif = nat_targets_np[:, :2]
+                    if opts['exp'] == 'celebA':
+                        x_latents_unif = norm.cdf(x_latents_unif) * 2 - 1
+                        nat_targets_unif = norm.cdf(nat_targets_unif) * 2 - 1                            
+                    frame = sinkhorn.draw_edges(x_latents_unif, nat_targets_unif, VIDEO_SIZE, radius=1.5, edges=False)
                     video.write_frame(frame)
                     print("frame")
-                    if opts['zdim'] == 2:
-                        import synth_data
-                        covered = synth_data.covered_area(x_latents_np, resolution=400, radius=5)
-                        print("covered_area", x_latents_np.shape, covered)
-                        if 'NEPTUNE_API_TOKEN' in os.environ:
-                            neptune.send_metric('covered_area', x=counter, y=covered)
+                    import synth_data
+                    covered = synth_data.covered_area(x_latents_unif, resolution=400, radius=5)
+                    print("covered_area", x_latents_unif.shape, covered)
+                    if 'NEPTUNE_API_TOKEN' in os.environ:
+                        neptune.send_metric('covered_area', x=counter, y=covered)
 
                 # Update encoder and decoder
                 feed_d = {
