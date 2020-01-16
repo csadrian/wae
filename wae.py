@@ -375,11 +375,34 @@ class WAE(object):
                 opts, self, sample_pz)
         elif opts['z_test'] == 'sinkhorn':
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+        elif opts['z_test'] == 'sliced_wae':
+            loss_match = self.sliced_wae_loss(sample_qz, sample_pz)
        # elif opts['z_test'] == 'sinkhorn_stay_loss':
        #     loss_match, stay_loss = self.sinkhorn_loss_with_stay(sample_qz, sample_pz)
         else:
             assert False, 'Unknown penalty %s' % opts['z_test']
         return loss_match, loss_gan
+
+    def sliced_wae_loss(self, sample_qz, sample_pz):
+        opts = self.opts
+        L = 250 #number of projections
+        endim = opts['zdim']
+
+        theta=np.asarray([w/np.sqrt((w**2).sum()) for w in np.random.normal(size=(L,endim))])
+        k = utils.get_batch_size(sample_qz)
+        k = tf.cast(k, tf.int32)
+        theta = tf.Variable(theta)
+        theta = tf.cast(theta, tf.float32)
+
+        proj_pz = tf.matmul(sample_pz, tf.transpose(theta))
+        proj_qz = tf.matmul(sample_qz, tf.transpose(theta))
+
+        W2=(tf.nn.top_k(tf.transpose(proj_pz),k).values
+           - tf.nn.top_k(tf.transpose(proj_qz),k).values)**2
+
+        W2 = tf.math.reduce_sum(W2)
+
+        return W2
 
 
     def mmd_linear(self, sample_qz, sample_pz):
