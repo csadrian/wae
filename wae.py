@@ -378,6 +378,8 @@ class WAE(object):
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
         elif opts['z_test'] == 'sliced_wae':
             loss_match = self.sliced_wae_loss(sample_qz, sample_pz)
+        elif opts['z_test'] == 'sliced_wae_adv':
+            loss_match = self.sliced_wae_adversarial_loss(sample_qz, sample_pz)
        # elif opts['z_test'] == 'sinkhorn_stay_loss':
        #     loss_match, stay_loss = self.sinkhorn_loss_with_stay(sample_qz, sample_pz)
         else:
@@ -404,6 +406,40 @@ class WAE(object):
         W2 = tf.math.reduce_sum(W2)
 
         return W2
+
+
+    def sliced_wae_adversarial_loss(self, sample_qz, sample_pz):
+        opts = self.opts
+        endim = opts['zdim']
+
+        s1, u1, theta1 = tf.linalg.svd(sample_qz)
+        s2, u2, theta2 = tf.linalg.svd(sample_pz)
+        k = utils.get_batch_size(sample_qz)
+        k = tf.cast(k, tf.int32)
+        theta1 = tf.slice(tf.cast(theta1, tf.float32), [0,0], [1,2])
+        theta2 = tf.cast(theta2, tf.float32)
+        opts = self.opts
+        endim = opts['zdim']
+
+        s1, u1, theta1 = tf.linalg.svd(sample_qz)
+        s2, u2, theta2 = tf.linalg.svd(sample_pz)
+        k = utils.get_batch_size(sample_qz)
+        k = tf.cast(k, tf.int32)
+        theta1 = tf.slice(tf.cast(theta1, tf.float32), [0,0], [1,2])
+        theta2 = tf.cast(theta2, tf.float32)
+
+        proj_pz1 = tf.matmul(sample_pz, tf.transpose(theta1))
+        proj_qz1 = tf.matmul(sample_qz, tf.transpose(theta1))
+
+        proj_pz2 = tf.matmul(sample_pz, tf.transpose(theta2))
+        proj_qz2 = tf.matmul(sample_qz, tf.transpose(theta2))
+
+
+        W2=(tf.nn.top_k(tf.transpose(proj_pz1),k).values
+            - tf.nn.top_k(tf.transpose(proj_qz1),k).values)**2
+        W2 = tf.math.reduce_sum(W2)
+
+        return W2
 
 
     def mmd_linear(self, sample_qz, sample_pz):
