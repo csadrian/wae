@@ -965,9 +965,12 @@ class WAE(object):
                     print("frame")
                     import synth_data
                     covered = synth_data.covered_area(x_latents_unif, resolution=400, radius=5)
+                    covmtx = np.cov(np.transpose(x_latents_np))
                     print("covered_area", x_latents_unif.shape, covered)
+                    print("covariance_matrix", covmtx, "rank", np.linalg.matrix_rank(covmtx))
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('covered_area', x=counter, y=covered)
+                        neptune.send_metric('covariance_matrix', x=counter, y=np.linalg.matrix_rank(covmtx))
 
                 # Update encoder and decoder
                 feed_d = {
