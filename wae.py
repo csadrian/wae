@@ -108,6 +108,7 @@ class WAE(object):
         self.stay_loss = self.stay_loss()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
+        self.sinkhorn_loss_tf = self.sinkhorn_loss(self.encoded, self.nat_targets)
 
         self.rec_grad = tf.reduce_mean(tf.abs(tf.gradients(self.loss_reconstruct, [self.encoded])))
 
@@ -182,11 +183,19 @@ class WAE(object):
         x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, opts['zdim']))
         self.x_latents_with_current_batch = x_latents_with_current_batch
 
+        self.nat_targets_update_ph = tf.placeholder(self.nat_targets.dtype, shape=self.nat_targets.get_shape())
+        self.update_nat_targets_op = self.nat_targets.assign(self.nat_targets_update_ph)
 
+        self.x_latents_update_ph = tf.placeholder(self.x_latents.dtype, shape=self.x_latents.get_shape())
+        self.update_x_latents_op = self.x_latents.assign(self.x_latents_update_ph)
+
+        self.su_ids_to_update_ph = tf.placeholder(tf.int64, shape=(self.opts['recalculate_size'],))
+        self.su_latents_ph = tf.placeholder(tf.float32, shape=(self.opts['recalculate_size'], self.opts['zdim']))
+        self.scatter_update_x_latents_op = tf.scatter_update(self.x_latents, self.su_ids_to_update_ph, self.su_latents_ph)
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
-        tf.assign(self.nat_targets, self.nat_targets_np).eval(session=self.sess)
+        self.sess.run(self.update_nat_targets_op, feed_dict={self.nat_targets_update_ph: self.nat_targets_np})
 
     def add_inputs_placeholders(self):
         opts = self.opts
@@ -820,11 +829,13 @@ class WAE(object):
         if overwrite_placeholder:
             if ids is not None:
                 ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['recalculate_size'])]
-                tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
+                # Old eval op: tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
+                self.sess.run(self.scatter_update_x_latents_op, feed_dict={self.su_ids_to_update_ph: ids_to_update, self.su_latents_ph: latents})
                 self.x_latents_np[ids_to_update] = latents
                 self.nat_pos = (self.nat_pos + self.opts['recalculate_size']) % self.opts['nat_size']
             else:
-                self.x_latents.assign(latents).eval(session=self.sess)
+                # Old eval op: self.x_latents.assign(latents).eval(session=self.sess)
+                self.sess.run(self.update_x_latents_op, feed_dict={self.x_latents_update_ph: latents})
                 self.x_latents_np = latents
                 self.nat_pos = 0
         return latents
@@ -1152,7 +1163,7 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
-                    global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss(self.encoded, self.nat_targets),
+                    global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss_tf,
                         feed_dict={self.sample_points: data.test_data[:self.num_pics],
                                    self.is_training: False})
 
