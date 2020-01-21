@@ -979,7 +979,7 @@ class WAE(object):
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 
-                if True:
+                if counter % opts['print_every'] == 0:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
                     print("frame,", nat_targets_np.shape)
                     x_latents_unif = x_latents_np[:, :2]
@@ -1038,6 +1038,7 @@ class WAE(object):
                     run_result_dict[key] = run_result[len_orig_run_ops+i]
                     i += 1
 
+                del run_result
                 #wae_lambda = 0.0001*np.abs(rec_grad_np) / np.abs(global_grad_np)
 
                 if zxz_lambda != 0.0:
@@ -1066,6 +1067,7 @@ class WAE(object):
                                    self.lr_decay: decay,
                                    self.is_training: True})
                
+                del batch_images
 
                 self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
 
@@ -1493,7 +1495,7 @@ def save_plots(opts, sample_train, sample_test,
     canvas = plt.get_current_fig_manager().canvas
     canvas.draw()
     transport_plot = PIL.Image.frombytes('RGB', canvas.get_width_height(), canvas.tostring_rgb())
-   
+    fig.clear()   
     plt.close()
 
     return (summary_plot, transport_plot)
