@@ -972,6 +972,7 @@ class WAE(object):
                 else:
                     rnd_it = random.randint(0, batches_num-1)
                     data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
+                    all_data_ids = data_ids
 
 
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
