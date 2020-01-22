@@ -32,7 +32,7 @@ sinkhorn_epsilon=0.01
 nat_resampling=None
 # loss_mmd (a monitored but not optimized value) is calculated with this many prior samples:
 
-name="sinkhorn-nu-global-mnist_res=${nat_resampling}_exp=${exp}_batch_size=${bs}_lr=${lr}_train_size=${train_size}_rec_lambda=${rec_lambda}_sinkhorn_epsilon=${sinkhorn_epsilon}_wae_lambda=${wae_lambda}_${dt}"
+name="mmd-nu-global-mnist_res=${nat_resampling}_exp=${exp}_batch_size=${bs}_lr=${lr}_train_size=${train_size}_rec_lambda=${rec_lambda}_sinkhorn_epsilon=${sinkhorn_epsilon}_wae_lambda=${wae_lambda}_${dt}"
 CUDA_VISIBLE_DEVICES=0 python run.py --pz=${pz} --train_size=${train_size} \
     --z_test=${z_test} --z_test_scope=${z_test_scope} \
     --sinkhorn_sparse=False --enc_noise=deterministic --name="${name}" \
