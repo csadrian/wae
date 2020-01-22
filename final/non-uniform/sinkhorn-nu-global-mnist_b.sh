@@ -3,7 +3,7 @@ mkdir -p out
 dt=$(date '+%d%m%Y%H%M%S');
 echo $dt
 
-iteration_target=10000
+iteration_target=20000
 for nat_size in 1000 5000 10000 50000
 do
 for bs in 200 500
