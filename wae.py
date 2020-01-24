@@ -108,7 +108,9 @@ class WAE(object):
         self.stay_loss = self.stay_loss()
         self.loss_reconstruct, self.per_sample_rec_loss = self.reconstruction_loss(
             self.opts, self.sample_points, self.reconstructed)
-        self.sinkhorn_loss_tf = self.sinkhorn_loss(self.encoded, self.nat_targets)
+        self.latents_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        self.targets_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        self.sinkhorn_loss_tf = self.sinkhorn_loss(self.latents_ph, self.targets_ph)
 
         self.rec_grad = tf.reduce_mean(tf.abs(tf.gradients(self.loss_reconstruct, [self.encoded])))
 
@@ -247,8 +249,7 @@ class WAE(object):
 
         return stay_loss
 
-
-
+    # TODO takes sparse indices from self.nat_sparse_indices, not good for test data.
     def sinkhorn_loss(self, sample_qz, sample_pz):
         opts = self.opts
 
@@ -260,10 +261,6 @@ class WAE(object):
             OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(sample_qz, sample_pz, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
             OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-        self.P = P
-        self.C = C
-
-        self.add_to_log("sinkhorn_ot", OT)
 
         return OT
 
@@ -385,6 +382,7 @@ class WAE(object):
                 opts, self, sample_pz)
         elif opts['z_test'] == 'sinkhorn':
             loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+            self.add_to_log("sinkhorn_ot", loss_match)
         elif opts['z_test'] == 'sliced_wae':
             loss_match = self.sliced_wae_loss(sample_qz, sample_pz)
         elif opts['z_test'] == 'sliced_wae_adv':
@@ -809,21 +807,25 @@ class WAE(object):
             logging.error('WARNING: possible bug in the worst 2d projection')
         return proj_mat, dot_prod
 
-    def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
 
-        # Calculate latent image of the full dataset
+    def encode(self, x, batch_size):
         latents_list = []
+        for k in range(x.shape[0] // batch_size):
+            batch_images_temp = x[k*batch_size:(k+1)*batch_size]
+            batch_latents_temp, = self.sess.run([self.encoded], feed_dict={self.is_training: False, self.sample_points: batch_images_temp})
+            latents_list.append(batch_latents_temp)
+        latents = np.concatenate(latents_list, axis=0)
+        return latents
+
+
+    def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
+        # Calculate latent image of the full dataset
         if ids is not None:
             data_temp = data.data[ids]
         else:
             data_temp = data.data[:self.opts['nat_size']]
  
-        for k in range(data_temp.shape[0] // batch_size):
-            batch_images_temp = data_temp[k*batch_size:(k+1)*batch_size]
-            batch_latents_temp, = self.sess.run([self.encoded], feed_dict={self.is_training: False, self.sample_points: batch_images_temp})
-            latents_list.append(batch_latents_temp)
-        latents = np.concatenate(latents_list, axis=0)
-
+        latents = self.encode(data_temp, batch_size)
         print("Recalculated latents, shape: ", latents.shape)
 
         if overwrite_placeholder:
@@ -916,7 +918,7 @@ class WAE(object):
 
 
         VIDEO_SIZE = 512
-        with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 30.0) as video:
+        with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 3.0) as video:
           #if True:
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
@@ -1125,7 +1127,6 @@ class WAE(object):
                     #neptune.send_metric('rec_grad_np', x=counter, y=rec_grad_np)
                     #neptune.send_metric('global_grad_np', x=counter, y=global_grad_np)
 
-                
                 # Update regularizer if necessary
                 if opts['lambda_schedule'] == 'adaptive':
                     if wait_lambda >= 999 and len(losses_rec) > 0:
@@ -1163,8 +1164,14 @@ class WAE(object):
 
                     enc_test_prev = enc_test
 
+                    nat_size = self.opts['nat_size']
+                    assert len(data.test_data) >= nat_size
+                    test_latents = self.encode(data.test_data[:nat_size], opts['batch_size'])
+                    test_targets = self.sample_pz(nat_size)
+
                     global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss_tf,
-                        feed_dict={self.sample_points: data.test_data[:self.num_pics],
+                        feed_dict={self.latents_ph: test_latents,
+                                   self.targets_ph: test_targets,
                                    self.is_training: False})
 
                     # Auto-encoding training images
@@ -1267,14 +1274,15 @@ class WAE(object):
                         plot_dicts = plot_syn.get_plots(generated, opts, counter-1)
                         for plot_dict in plot_dicts:
                             if 'NEPTUNE_API_TOKEN' in os.environ:
-                                neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])
+                                pass # neptune.send_image(plot_dict['name'], x=counter-1, y=plot_dict['plot'])
 
                     if 'NEPTUNE_API_TOKEN' in os.environ:
                         neptune.send_metric('rec_loss_test', x=counter-1, y=loss_rec_test)
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
                         neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
-                        neptune.send_image('summary_plot', summary_plot)
+                        print("skipping sending image, issues with neptune")
+                        # neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
         video.close()
