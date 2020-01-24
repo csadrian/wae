@@ -259,9 +259,9 @@ class WAE(object):
         if opts['sinkhorn_sparse']:
             OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(sample_qz, sample_pz, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
-            OT = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-        #self.P = P
-        #self.C = C
+            OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        self.P = P
+        self.C = C
 
         self.add_to_log("sinkhorn_ot", OT)
 
@@ -1274,7 +1274,7 @@ class WAE(object):
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
                         neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
-                        #neptune.send_image('summary_plot', summary_plot)
+                        neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
         video.close()
