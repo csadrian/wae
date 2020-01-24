@@ -88,11 +88,11 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
     for i in range(niter):
         f, g = Sinkhorn_step(C, f, epsilon)
 
-    #    P_temp = -f[:, None] - C
+    P_temp = -f[:, None] - C
     P = (-f[:, None] - g[None, :] - C) / epsilon
     # P = rounding_log(P, tf.zeros(n, tf.float32), tf.zeros(n, tf.float32))
     OT = tf.reduce_sum(tf.exp(P) * C)
-    return OT
+    return OT, P_temp, P, f, g
 
 
 # TODO get rid of P_temp which only served debugging purposes
@@ -117,8 +117,8 @@ def SparseSinkhorn(C, f=None, epsilon=None, niter=10):
 # TODO get rid of P_temp which only served debugging purposes
 def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     C = pdist(sources, targets)
-    OT = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
-    return OT
+    OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    return OT, P_temp, P, f, g, C
 
 
 def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10):
