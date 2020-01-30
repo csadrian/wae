@@ -280,3 +280,15 @@ config_checkers['e_pretrain'] = False
 config_checkers['e_num_filters'] = 128
 config_checkers['g_num_filters'] = 128
 config_checkers['print_every'] = 50
+
+config_noise = copy.deepcopy(config_mnist)
+config_noise['dataset'] = 'noise'
+config_noise['work_dir'] = 'results_noise'
+config_noise['zdim'] = 10
+config_noise['pz'] = 'uniform'
+config_noise['e_noise'] = 'deterministic'
+config_noise['e_pretrain'] = False
+config_noise['e_num_filters'] = 128
+config_noise['g_num_filters'] = 128
+config_noise['print_every'] = 50
+

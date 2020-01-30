@@ -32,6 +32,7 @@ datashapes['celebA'] = [64, 64, 3]
 datashapes['grassli'] = [64, 64, 3]
 datashapes['dsprites'] = [64, 64, 1]
 datashapes['checkers'] = [28, 28, 1]
+datashapes['noise'] = [28, 28, 1]
 
 def _data_dir(opts):
     if opts['data_dir'].startswith("/"):
@@ -268,6 +269,8 @@ class DataHandler(object):
             self._load_syn_2_constant_uniform(opts)
         elif opts['dataset'] == 'checkers':
             self._load_checkers(opts)
+        elif opts['dataset'] == 'noise':
+            self._load_noise(opts)
         else:
             raise ValueError('Unknown %s' % opts['dataset'])
 
@@ -707,6 +710,26 @@ class DataHandler(object):
 
         self.data = Data(opts, X[:-test_size])
         self.test_data = Data(opts, X[-test_size:])
+        self.num_points = len(self.data)
+
+        logging.debug('Loading Done.')
+
+    def _load_noise(self, opts):
+
+        logging.debug('Creating noise')
+
+        seed = 123
+        np.random.seed(seed)
+
+        self.data_shape = (28, 28, 1)
+        train_size = 10000
+        test_size = 10000
+
+        noise = np.random.normal(loc = 0.0, scale =1.0, size = (train_size+test_size, 28, 28, 1))
+        normed_noise = (noise - np.amin(noise)) / (np.amax(noise)-np.amin(noise))
+
+        self.data = Data(opts, normed_noise[:-test_size])
+        self.test_data = Data(opts, normed_noise[-test_size:])
         self.num_points = len(self.data)
 
         logging.debug('Loading Done.')

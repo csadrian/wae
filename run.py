@@ -116,6 +116,8 @@ def main():
         opts = configs.config_syn_2_constant_uniform
     elif FLAGS.exp == 'checkers':
         opts = configs.config_checkers
+    elif FLAGS.exp == 'noise':
+        opts = configs.config_noise
     else:
         assert False, 'Unknown experiment configuration'
 
