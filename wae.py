@@ -997,7 +997,7 @@ class WAE(object):
                     print("frame,", nat_targets_np.shape)
                     x_latents_unif = x_latents_np[:, :2]
                     nat_targets_unif = nat_targets_np[:, :2]
-                    if opts['exp'] == 'celebA':
+                    if opts['pz'] == 'normal':
                         x_latents_unif = norm.cdf(x_latents_unif) * 2 - 1
                         nat_targets_unif = norm.cdf(nat_targets_unif) * 2 - 1                            
                     frame = sinkhorn.draw_edges(x_latents_unif, nat_targets_unif, VIDEO_SIZE, radius=1.5, edges=False)

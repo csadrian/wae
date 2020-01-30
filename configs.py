@@ -292,3 +292,5 @@ config_noise['e_num_filters'] = 128
 config_noise['g_num_filters'] = 128
 config_noise['print_every'] = 50
 
+config_noise_unif = copy.deepcopy(config_noise)
+

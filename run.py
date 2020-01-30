@@ -118,6 +118,8 @@ def main():
         opts = configs.config_checkers
     elif FLAGS.exp == 'noise':
         opts = configs.config_noise
+    elif FLAGS.exp == 'noise_unif':
+        opts = configs.config_noise_unif
     else:
         assert False, 'Unknown experiment configuration'
 
