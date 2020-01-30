@@ -1141,6 +1141,18 @@ class WAE(object):
                         wait_lambda += 1
 
 
+                if opts['z_test_scope'] == 'global':
+                    sample_qz = self.x_latents_with_current_batch
+                    sample_pz = self.nat_targets
+                else:
+                    sample_qz = self.encoded
+                    sample_pz = self.sample_noise
+
+                gradients_of_current_batch = np.asarray(self.sess.run(tf.gradients(self.sinkhorn_loss(sample_qz, sample_pz), self.encoded), feed_dict = feed_d)[0])
+                current_batch = np.asarray(self.sess.run(self.encoded, feed_dict = feed_d))
+                gradients_and_current_batch = np.concatenate((gradients_of_current_batch, current_batch), axis = 1)
+                np.savetxt("gradients_and_coord.txt", gradients_and_current_batch)
+
                 counter += 1
 
                 # Print debug info
@@ -1173,6 +1185,7 @@ class WAE(object):
                         feed_dict={self.latents_ph: test_latents,
                                    self.targets_ph: test_targets,
                                    self.is_training: False})
+
 
                     # Auto-encoding training images
 
