@@ -917,6 +917,8 @@ class WAE(object):
         logging.error('Real pictures sharpness = %.5f' % np.min(real_blurr))
 
 
+        gradlog_file = open("gradlog.txt", "w")
+        
         VIDEO_SIZE = 512
         with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 3.0) as video:
           #if True:
@@ -1151,7 +1153,9 @@ class WAE(object):
                 gradients_of_current_batch = np.asarray(self.sess.run(tf.gradients(self.sinkhorn_loss(sample_qz, sample_pz), self.encoded), feed_dict = feed_d)[0])
                 current_batch = np.asarray(self.sess.run(self.encoded, feed_dict = feed_d))
                 gradients_and_current_batch = np.concatenate((gradients_of_current_batch, current_batch), axis = 1)
-                np.savetxt("gradients_and_coord.txt", gradients_and_current_batch)
+                print(gradients_and_current_batch, file = gradlog_file)
+                gradlog_file.flush()
+                #np.savetxt("gradients_and_coord.txt", gradients_and_current_batch)
 
                 counter += 1
 
@@ -1299,6 +1303,7 @@ class WAE(object):
 
         # Save the final model
         video.close()
+        gradlog_file.close()
         if True:#epoch > 0:
             self.saver.save(self.sess,
                              os.path.join(opts['work_dir'],
