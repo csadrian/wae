@@ -1082,7 +1082,7 @@ class WAE(object):
                                    self.lr_decay: decay,
                                    self.is_training: True})
                
-                del batch_images
+                # del batch_images
 
                 self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
 
@@ -1150,12 +1150,23 @@ class WAE(object):
                     sample_qz = self.encoded
                     sample_pz = self.sample_noise
 
-                gradients_of_current_batch = np.asarray(self.sess.run(tf.gradients(self.sinkhorn_loss(sample_qz, sample_pz), self.encoded), feed_dict = feed_d)[0])
-                current_batch = np.asarray(self.sess.run(self.encoded, feed_dict = feed_d))
-                gradients_and_current_batch = np.concatenate((gradients_of_current_batch, current_batch), axis = 1)
-                print(gradients_and_current_batch, file = gradlog_file)
+                grad = tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents)
+                gradients_of_first_batch = np.asarray(self.sess.run(
+                    grad,
+                    feed_dict = feed_d)[0])
+                """
+                gradients_of_first_batch = np.asarray(self.sess.run(
+                    tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents[:batch_size]),
+                    feed_dict = feed_d)[0])
+                """
+                first_batch = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
+                gradients_and_batch = np.concatenate((gradients_of_first_batch, first_batch), axis = 1)
+                my_print(gradients_and_batch, f=gradlog_file)
+                def my_print(arr, f):
+                    for line in arr:
+                        print("\t".join(map(str, line)), file=f)
                 gradlog_file.flush()
-                #np.savetxt("gradients_and_coord.txt", gradients_and_current_batch)
+                #np.savetxt("gradients_and_coord.txt", gradients_and_batch)
 
                 counter += 1
 
