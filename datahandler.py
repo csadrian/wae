@@ -33,7 +33,7 @@ datashapes['grassli'] = [64, 64, 3]
 datashapes['dsprites'] = [64, 64, 1]
 datashapes['checkers'] = [28, 28, 1]
 datashapes['noise'] = [28, 28, 1]
-datashapes['noise_unif'] = [28, 28, 1]
+datashapes['noise_unif'] = [64, 64, 3]
 
 
 def _data_dir(opts):
@@ -745,11 +745,11 @@ class DataHandler(object):
         seed = 123
         np.random.seed(seed)
 
-        self.data_shape = (28, 28, 1)
+        self.data_shape = (64, 64, 3)
         train_size = 10000
         test_size = 10000
 
-        noise = np.random.uniform(low = 0, high = 1, size = (train_size+test_size, 28, 28, 1))
+        noise = np.random.uniform(low = 0, high = 1, size = (train_size+test_size, 64, 64, 3))
 
         self.data = Data(opts, noise[:-test_size])
         self.test_data = Data(opts, noise[-test_size:])

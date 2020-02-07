@@ -17,7 +17,7 @@ config_celebA['celebA_crop'] = 'closecrop' # closecrop, resizecrop
 
 config_celebA['optimizer'] = 'adam' # adam, sgd
 config_celebA['adam_beta1'] = 0.5
-config_celebA['lr'] = 0.001 #0.001 for WAE-MMD and 0.0003 for WAE-GAN
+config_celebA['lr'] = 0.00001 #0.001 for WAE-MMD and 0.0003 for WAE-GAN
 config_celebA['lr_adv'] = 0.001
 config_celebA['lr_schedule'] = 'manual_smooth' #manual, plateau, or a number
 config_celebA['batch_size'] = 100
@@ -292,5 +292,11 @@ config_noise['e_num_filters'] = 128
 config_noise['g_num_filters'] = 128
 config_noise['print_every'] = 50
 
-config_noise_unif = copy.deepcopy(config_noise)
+config_noise_unif = copy.deepcopy(config_celebA)
+config_noise_unif['dataset'] = 'noise_unif'
+config_noise_unif['work_dir'] = 'results_noise_unif'
+config_noise_unif['pz'] = 'uniform'
+config_noise_unif['e_noise'] = 'deterministic'
+config_noise_unif['e_pretrain'] = False
+config_noise_unif['input_normalize_sym'] = False
 
