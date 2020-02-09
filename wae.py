@@ -1169,15 +1169,24 @@ class WAE(object):
                 proj_grads_of_latents = grads_of_latents[:, :2]
                 proj_pos_of_latents = pos_of_latents[:, :2]
                 proj_current_batch = proj_pos_of_latents[it * batch_size : (it + 1) * batch_size] 
-                
-                fig, ax = plt.subplots()
-                ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], c = 'g')
-                ax.scatter(x = proj_current_batch[:, 0], y = proj_current_batch[:, 1], c = 'm')
 
-                ax.quiver(proj_pos_of_latents[:, 0], proj_pos_of_latents[:, 1], proj_grads_of_latents[:, 0], proj_grads_of_latents[:, 0])
-                
-                plt.savefig(os.path.join(opts["work_dir"] + str(counter) + "_pos_latents.png"))
-                plt.close()
+                if counter > 0:
+                    fig, ax = plt.subplots()
+                    ax.scatter(x = prev_proj_pos_of_latents[:, 0], y = prev_proj_pos_of_latents[:, 1], c = 'g')
+                    ax.scatter(x = prev_proj_current_batch[:, 0], y = prev_proj_current_batch[:, 1], c = 'm')                           
+                    ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
+                              prev_proj_grads_of_latents[:, 0], prev_proj_grads_of_latents[:, 1])
+
+                    proj_move = proj_grads_of_latents - prev_proj_grads_of_latents
+                    ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
+                              proj_move[:, 0], proj_move[:, 1], color = "c")
+
+                    plt.savefig(os.path.join(opts["work_dir"] + str(counter - 1) + "_pos_latents.png"))
+                    plt.close()
+
+                prev_proj_grads_of_latents = proj_grads_of_latents
+                prev_proj_pos_of_latents = proj_pos_of_latents           
+                prev_proj_current_batch = proj_current_batch
 
                 counter += 1
 
