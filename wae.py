@@ -1142,31 +1142,42 @@ class WAE(object):
                     else:
                         wait_lambda += 1
 
-
+                """
                 if opts['z_test_scope'] == 'global':
                     sample_qz = self.x_latents_with_current_batch
                     sample_pz = self.nat_targets
                 else:
                     sample_qz = self.encoded
                     sample_pz = self.sample_noise
-
+                """
                 grad = tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents)
-                gradients_of_first_batch = np.asarray(self.sess.run(
-                    grad,
-                    feed_dict = feed_d)[0])
+                grads_of_latents = np.asarray(self.sess.run(
+                    grad, feed_dict = feed_d)[0])
                 """
                 gradients_of_first_batch = np.asarray(self.sess.run(
                     tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents[:batch_size]),
                     feed_dict = feed_d)[0])
                 """
-                first_batch = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
-                gradients_and_batch = np.concatenate((gradients_of_first_batch, first_batch), axis = 1)
-                my_print(gradients_and_batch, f=gradlog_file)
+                pos_of_latents = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
+                grads_and_pos = np.concatenate((grads_of_latents, pos_of_latents), axis = 1)
                 def my_print(arr, f):
                     for line in arr:
                         print("\t".join(map(str, line)), file=f)
+                my_print(grads_and_pos, f=gradlog_file)
                 gradlog_file.flush()
-                #np.savetxt("gradients_and_coord.txt", gradients_and_batch)
+
+                proj_grads_of_latents = grads_of_latents[:, :2]
+                proj_pos_of_latents = pos_of_latents[:, :2]
+                proj_current_batch = proj_pos_of_latents[it * batch_size : (it + 1) * batch_size] 
+                
+                fig, ax = plt.subplots()
+                ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], c = 'g')
+                ax.scatter(x = proj_current_batch[:, 0], y = proj_current_batch[:, 1], c = 'm')
+
+                ax.quiver(proj_pos_of_latents[:, 0], proj_pos_of_latents[:, 1], proj_grads_of_latents[:, 0], proj_grads_of_latents[:, 0])
+                
+                plt.savefig(os.path.join(opts["work_dir"] + str(counter) + "_pos_latents.png"))
+                plt.close()
 
                 counter += 1
 
