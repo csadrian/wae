@@ -15,9 +15,9 @@ config_celebA['input_normalize_sym'] = True
 config_celebA['data_dir'] = 'datasets/celeba/img_align_celeba'
 config_celebA['celebA_crop'] = 'closecrop' # closecrop, resizecrop
 
-config_celebA['optimizer'] = 'adam' # adam, sgd
+config_celebA['optimizer'] = 'sgd' # adam, sgd
 config_celebA['adam_beta1'] = 0.5
-config_celebA['lr'] = 0.1 #0.001 for WAE-MMD and 0.0003 for WAE-GAN
+config_celebA['lr'] = 0.01 #0.001 for WAE-MMD and 0.0003 for WAE-GAN
 config_celebA['lr_adv'] = 0.001
 config_celebA['lr_schedule'] = 'manual_smooth' #manual, plateau, or a number
 config_celebA['batch_size'] = 100
@@ -44,7 +44,7 @@ config_celebA['gan_p_trick'] = True
 config_celebA['d_num_layers'] = 4
 config_celebA['d_num_filters'] = 1024
 
-config_celebA['zdim'] = 64
+config_celebA['zdim'] = 2
 config_celebA['pz'] = 'sphere' # uniform, normal, sphere
 config_celebA['cost'] = 'l2sq' #l2, l2sq, l1
 config_celebA['pz_scale'] = 1.
