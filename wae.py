@@ -1,3 +1,4 @@
+
 # Copyright 2017 Max Planck Society
 # Distributed under the BSD-3 Software license,
 # (See accompanying file ./LICENSE.txt or copy at
@@ -986,11 +987,15 @@ class WAE(object):
                     data_ids = all_data_ids[:opts['batch_size']]
                 else:
                     rnd_it = random.randint(0, batches_num-1)
-                    data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
-                    all_data_ids = data_ids
+                    #data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
+                    #all_data_ids = data_ids
+                    #all_data_ids = np.arange((rnd_it*opts['recalculate_size']) % self.train_size, ((rnd_it+1)*opts['recalculate_size']) % self.train_size)
+                    all_data_ids = np.arange(0, self.train_size)
+                    data_ids = np.random.choice(self.train_size, opts['batch_size'], replace=False)
 
 
-                data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
+                #data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
+                data_ids_mod = data_ids
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 
@@ -1150,7 +1155,9 @@ class WAE(object):
                     sample_qz = self.encoded
                     sample_pz = self.sample_noise
                 """
+                
                 grad = tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents)
+                #grad = tf.gradients(self.x_latents, self.x_latents)
                 grads_of_latents = np.asarray(self.sess.run(
                     grad, feed_dict = feed_d)[0])
                 """
@@ -1185,9 +1192,9 @@ class WAE(object):
                     plt.savefig(os.path.join(opts["work_dir"] + str(counter - 1) + "_pos_latents.png"), dpi=200)
                     plt.close()
 
-                prev_proj_grads_of_latents = proj_grads_of_latents
-                prev_proj_pos_of_latents = proj_pos_of_latents           
-                prev_proj_current_batch = proj_current_batch
+                prev_proj_grads_of_latents = np.copy(proj_grads_of_latents)
+                prev_proj_pos_of_latents = np.copy(proj_pos_of_latents)           
+                prev_proj_current_batch = np.copy(proj_current_batch)
 
                 counter += 1
 
