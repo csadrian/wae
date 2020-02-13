@@ -292,3 +292,11 @@ config_noise['e_num_filters'] = 128
 config_noise['g_num_filters'] = 128
 config_noise['print_every'] = 50
 
+config_noise_unif = copy.deepcopy(config_celebA)
+config_noise_unif['dataset'] = 'noise_unif'
+config_noise_unif['work_dir'] = 'results_noise_unif'
+config_noise_unif['pz'] = 'uniform'
+config_noise_unif['e_noise'] = 'deterministic'
+config_noise_unif['e_pretrain'] = False
+config_noise_unif['input_normalize_sym'] = False
+

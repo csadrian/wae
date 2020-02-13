@@ -33,6 +33,8 @@ datashapes['grassli'] = [64, 64, 3]
 datashapes['dsprites'] = [64, 64, 1]
 datashapes['checkers'] = [28, 28, 1]
 datashapes['noise'] = [28, 28, 1]
+datashapes['noise_unif'] = [64, 64, 3]
+
 
 def _data_dir(opts):
     if opts['data_dir'].startswith("/"):
@@ -271,6 +273,8 @@ class DataHandler(object):
             self._load_checkers(opts)
         elif opts['dataset'] == 'noise':
             self._load_noise(opts)
+        elif opts['dataset'] == 'noise_unif':
+            self._load_noise_unif(opts)
         else:
             raise ValueError('Unknown %s' % opts['dataset'])
 
@@ -733,3 +737,24 @@ class DataHandler(object):
         self.num_points = len(self.data)
 
         logging.debug('Loading Done.')
+
+    def _load_noise_unif(self, opts):
+
+        logging.debug('Creating noise')
+
+        seed = 123
+        np.random.seed(seed)
+
+        self.data_shape = (64, 64, 3)
+        train_size = 10000
+        test_size = 10000
+
+        noise = np.random.uniform(low = 0, high = 1, size = (train_size+test_size, 64, 64, 3))
+
+        self.data = Data(opts, noise[:-test_size])
+        self.test_data = Data(opts, noise[-test_size:])
+        self.num_points = len(self.data)
+
+        logging.debug('Loading Done.')
+
+
