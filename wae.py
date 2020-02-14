@@ -1166,8 +1166,8 @@ class WAE(object):
                     feed_dict = feed_d)[0])
                 """
 
-                nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
-                proj_nat_targets = nat_targets_np[:, :2]
+                #nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
+                #proj_nat_targets = nat_targets_np[:, :2]
         
                 pos_of_latents = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
                 grads_and_pos = np.concatenate((grads_of_latents, pos_of_latents), axis = 1)
@@ -1183,7 +1183,7 @@ class WAE(object):
                 
                 if counter > 0:
                     fig, ax = plt.subplots()
-                    ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
+                    #ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
                     ax.scatter(x = prev_proj_pos_of_latents[:, 0], y = prev_proj_pos_of_latents[:, 1], s = 20, c = 'g')
                     ax.scatter(x = prev_proj_current_batch[:, 0], y = prev_proj_current_batch[:, 1], s = 20, c = 'm')
                     ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], s = 5, c = 'b')
