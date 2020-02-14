@@ -1,8 +1,29 @@
-import tensorflow as tf
+import sys
+import time
+import os
 import numpy as np
-import sinkhorn
+import tensorflow as tf
+import logging
 import ops
+import utils
+import sinkhorn
+import sparsifiers
+import random
+import neptune
+import PIL
+from models import encoder, decoder, z_adversary
+from datahandler import datashapes
+import improved_wae
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import io
+from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
+import plot_syn
 from collections import OrderedDict
+from scipy.stats import norm
+
+import ops
 
 # Functions needed for the model
 
@@ -54,20 +75,24 @@ def encoder(opts, inputs, reuse=False, is_training=False):
     inputs = tf.cond(is_training,
                      lambda: add_noise(inputs), lambda: do_nothing(inputs))
 
-    e_num_units = 10
-    e_num_layers = 2
+    num_units = 10
+    num_layers = 2
 
     with tf.variable_scope("encoder", reuse=reuse):
         hi = inputs
         i = 0
-        for i in range(e_num_layers):
-            hi = linear(opts, hi, e_num_units, scope='h%d_lin' % i)
+        for i in range(num_layers):
+            hi = linear(opts, hi, num_units, scope='h%d_lin' % i)
             if opts['batch_norm']:
                 hi = batch_norm(opts, hi, is_training,
                                     reuse, scope='h%d_bn' % i)
             hi = tf.nn.relu(hi)
+        if opts['e_noise'] != 'gaussian':
+            res = linear(opts, hi, opts['zdim'], 'hfinal_lin')
+        else:
             mean = linear(opts, hi, opts['zdim'], 'mean_lin')
-            log_sigmas = linear(opts, hi, opts['zdim'], 'log_sigmas_lin')
+            log_sigmas = linear(opts, hi,
+                                    opts['zdim'], 'log_sigmas_lin')
             res = (mean, log_sigmas)
                     
         noise_matrix = None
@@ -105,13 +130,14 @@ class simple_encoder(object):
 
         # Encode the content of sample_points placeholder
         res = encoder(opts, inputs=self.sample_points,
-                      is_training=self.is_training)    
+                      is_training=self.is_training)
+        self.encoded, _ = res
         self.enc_mean, self.enc_sigmas = None, None
         
         # -- Objectives, losses, penalties
 
         self.add_nat_tensors()
-        self.penalty, self.loss_gan = self.matching_penalty()
+        self.penalty = self.matching_penalty()
         self.latents_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.targets_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.sinkhorn_loss_tf = self.sinkhorn_loss(self.latents_ph, self.targets_ph)
@@ -119,20 +145,27 @@ class simple_encoder(object):
 
         # Extra costs if any
         
-        self.add_least_gaussian2d_ops()
-
         # -- Optimizers, savers, etc
 
         self.add_optimizers()
         self.add_savers()
         self.init = tf.global_variables_initializer()
 
+    def add_to_log(self, key, value):
+        self.tensors_to_log[key] = value
+
+    def get_tensors_to_log(self):
+        keys = ['sinkhorn_ot']  
+        for key in keys:
+            if key not in self.tensors_to_log:
+                self.tensors_to_log[key] = tf.constant(0.0)
+        return self.tensors_to_log        
 
     def add_nat_placeholders(self):
         opts = self.opts
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
         self.nat_targets = tf.Variable(self.nat_targets_np, dtype=tf.float32, trainable=False)
-        self.x_latents = tf.Variable(tf.zeros(opts['nat_size'], opts['zdim']), dtype=tf.float32, trainable=False)
+        self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim']), dtype=tf.float32), trainable=False)
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
 
     def add_nat_tensors(self):
@@ -213,8 +246,8 @@ class simple_encoder(object):
             sample_pz = self.sample_noise
 
         loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
-        self.add_to_log("sinkhorn_ot", loss_match)
-        return loss_match, loss_gan
+        #self.add_to_log("sinkhorn_ot", loss_match)
+        return loss_match
 
     def optimizer(self, lr, decay=1.):
         opts = self.opts
@@ -291,7 +324,8 @@ class simple_encoder(object):
         encoding_changes = []
         enc_test_prev = None
         batches_num = self.train_size // opts['batch_size']
-
+        self.num_pics = opts['plot_num_pics']
+        
         self.sess.run(self.init)
 
         self.start_time = time.time()
