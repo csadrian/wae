@@ -2,49 +2,24 @@ import tensorflow as tf
 import numpy as np
 import sinkhorn
 import ops
-
-batch_norm = False
-zdim = 2
-pz = 'normal'
-input_normalize_sym = False
-train_size = 50
-nat_size = 50
-batch_size = 10
-recalculate_size = 50
-e_pretrain = True
-sinkhorn_epsilon = 0.01
-sinkhorn_iters = 10
-z_test_scope = "global"
-z_test = "sinkhorn"
-optimizer = "sgd"
-lr = 0.001
-lr_adv = 0.001
-e_pretrain_sample_size = ?
-pz_scale = 1
-wae_lambda = 0.1
-epoch_num = 5
-lr_schedule = "manual_smooth"
-work_dir = "results_celeba"
-save_every_epoch = 10
-nat_resampling = "epoch"
-print_every = 1
+from collections import OrderedDict
 
 # Functions needed for the model
 
 def lrelu(x, leak=0.3):
     return tf.maximum(x, leak * x)
 
-def batch_norm(_input, is_train, reuse, scope, scale=True):
+def batch_norm(opts, _input, is_train, reuse, scope, scale=True):
 
     return tf.contrib.layers.batch_norm(
-        _input, center=True, scale=scale,
+        opts, _input, center=True, scale=scale,
         epsilon=1e-05, decay=0.9,
         is_training=is_train, reuse=reuse, updates_collections=None,
         scope=scope, fused=False)
 
-def linear(input_, output_dim, scope=None, init='normal', reuse=None):
-    stddev = 0.0099999
-    bias_start = 0.0
+def linear(opts, input_, output_dim, scope=None, init='normal', reuse=None):
+    stddev = opts['init_std']
+    bias_start = opts['init_bias']
     shape = input_.get_shape().as_list()
 
     assert len(shape) > 0
@@ -70,7 +45,7 @@ def linear(input_, output_dim, scope=None, init='normal', reuse=None):
 
 # Models 
 
-def encoder(inputs, reuse=False, is_training=False):
+def encoder(opts, inputs, reuse=False, is_training=False):
     def add_noise(x):
         shape = tf.shape(x)
         return x + tf.truncated_normal(shape, 0.0, 0.01)
@@ -86,13 +61,13 @@ def encoder(inputs, reuse=False, is_training=False):
         hi = inputs
         i = 0
         for i in range(e_num_layers):
-            hi = linear(hi, e_num_units, scope='h%d_lin' % i)
-            if batch_norm:
-                hi = batch_norm(hi, is_training,
+            hi = linear(opts, hi, e_num_units, scope='h%d_lin' % i)
+            if opts['batch_norm']:
+                hi = batch_norm(opts, hi, is_training,
                                     reuse, scope='h%d_bn' % i)
             hi = tf.nn.relu(hi)
-            mean = linear(hi, zdim, 'mean_lin')
-            log_sigmas = ops.linear(hi, zdim, 'log_sigmas_lin')
+            mean = linear(opts, hi, opts['zdim'], 'mean_lin')
+            log_sigmas = linear(opts, hi, opts['zdim'], 'log_sigmas_lin')
             res = (mean, log_sigmas)
                     
         noise_matrix = None
@@ -102,56 +77,11 @@ def encoder(inputs, reuse=False, is_training=False):
 
         return res, noise_matrix
 
-"""    
-def decoder(noise, reuse=False, is_training=True):
-    output_shape = [64, 64, 3]
-    g_num_units = 10
-    g_num_layers = 2
-
-    with tf.variable_scope("generator", reuse=reuse):
-        layer_x = noise
-        i = 0
-        for i in range(g_num_layers):
-            layer_x = linear(layer_x, g_num_units, 'h%d_lin' % i)
-            layer_x = tf.nn.relu(layer_x)
-            if opts['batch_norm']:
-                layer_x = batch_norm(
-                    layer_x, is_training, reuse, scope='h%d_bn' % i)
-        out = linear(layer_x,
-                         np.prod(output_shape), 'h%d_lin' % (i + 1))
-        out = tf.reshape(out, [-1] + list(output_shape))
-        if input_normalize_sym:
-            return tf.nn.tanh(out), out
-        else:
-            return tf.nn.sigmoid(out), out
- 
-        return res
-"""
-
-"""
-def transform_noise(opts, code, eps):
-    hi = code
-    T = 3
-    for i in range(T):
-        # num_units = max(opts['zdim'] ** 2 / 2 ** (T - i), 2)
-        num_units = max(2 * (i + 1) * opts['zdim'], 2)
-        hi = ops.linear(opts, hi, num_units, scope='eps_h%d_lin' % (i + 1))
-        hi = tf.nn.tanh(hi)
-    A = ops.linear(opts, hi, opts['zdim'] ** 2, scope='eps_hfinal_lin')
-    A = tf.reshape(A, [-1, opts['zdim'], opts['zdim']])
-    eps = tf.reshape(eps, [-1, 1, opts['zdim']])
-    res = tf.matmul(eps, A)
-    res = tf.reshape(res, [-1, opts['zdim']])
-    return res, A
-    # return ops.linear(opts, hi, opts['zdim'] ** 2, scope='eps_hfinal_lin')
-"""
-
-###############################################
-
-class VAE(object):
-    def __init__(self, train_size=0):
+class simple_encoder(object):
+    def __init__(self, opts, train_size=0):
 
         self.sess = tf.Session()
+        self.opts = opts
         self.train_size = train_size
         self.nat_pos = 0
 
@@ -174,7 +104,7 @@ class VAE(object):
         # -- Transformation ops
 
         # Encode the content of sample_points placeholder
-        res = encoder(inputs=self.sample_points,
+        res = encoder(opts, inputs=self.sample_points,
                       is_training=self.is_training)    
         self.enc_mean, self.enc_sigmas = None, None
         
@@ -182,19 +112,13 @@ class VAE(object):
 
         self.add_nat_tensors()
         self.penalty, self.loss_gan = self.matching_penalty()
-        self.latents_ph = tf.placeholder(tf.float32, shape=(nat_size, zdim))
-        self.targets_ph = tf.placeholder(tf.float32, shape=(nat_size, zdim))
+        self.latents_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
+        self.targets_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.sinkhorn_loss_tf = self.sinkhorn_loss(self.latents_ph, self.targets_ph)
-        self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
-                             self.wae_lambda * self.penalty
+        self.wae_objective = self.wae_lambda * self.penalty
 
         # Extra costs if any
         
-        if e_pretrain:
-            self.loss_pretrain = self.pretrain_loss()
-        else:
-            self.loss_pretrain = None
-
         self.add_least_gaussian2d_ops()
 
         # -- Optimizers, savers, etc
@@ -203,17 +127,18 @@ class VAE(object):
         self.add_savers()
         self.init = tf.global_variables_initializer()
 
-##################################################################################
 
     def add_nat_placeholders(self):
-        self.nat_targets_np = self.sample_pz(nat_size)
+        opts = self.opts
+        self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
         self.nat_targets = tf.Variable(self.nat_targets_np, dtype=tf.float32, trainable=False)
-        self.x_latents = tf.Variable(tf.zeros(nat_size, zdim)), dtype=tf.float32, trainable=False)
-        self.batch_indices_mod = tf.placeholder(tf.int64, shape=(batch_size,))
+        self.x_latents = tf.Variable(tf.zeros(opts['nat_size'], opts['zdim']), dtype=tf.float32, trainable=False)
+        self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
 
     def add_nat_tensors(self):
-        n = nat_size
-        bs = batch_size
+        opts = self.opts
+        n = opts['nat_size']
+        bs = opts['batch_size']
 
         x_latents_with_current_batch = tf.stop_gradient(tf.boolean_mask(self.x_latents,
             tf.sparse_to_dense(
@@ -225,7 +150,7 @@ class VAE(object):
             ))
         x_latents_with_current_batch = tf.concat([x_latents_with_current_batch, 
             self.encoded[:bs]], axis=0)
-        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, zdim))
+        x_latents_with_current_batch = tf.reshape(x_latents_with_current_batch, shape=(n, self.opts['zdim']))
         self.x_latents_with_current_batch = x_latents_with_current_batch
 
         self.nat_targets_update_ph = tf.placeholder(self.nat_targets.dtype, shape=self.nat_targets.get_shape())
@@ -234,15 +159,16 @@ class VAE(object):
         self.x_latents_update_ph = tf.placeholder(self.x_latents.dtype, shape=self.x_latents.get_shape())
         self.update_x_latents_op = self.x_latents.assign(self.x_latents_update_ph)
 
-        self.su_ids_to_update_ph = tf.placeholder(tf.int64, shape=(recalculate_size,))
-        self.su_latents_ph = tf.placeholder(tf.float32, shape=(recalculate_size, zdim))
+        self.su_ids_to_update_ph = tf.placeholder(tf.int64, shape=(self.opts['recalculate_size'],))
+        self.su_latents_ph = tf.placeholder(tf.float32, shape=(self.opts['recalculate_size'], self.opts['zdim']))
         self.scatter_update_x_latents_op = tf.scatter_update(self.x_latents, self.su_ids_to_update_ph, self.su_latents_ph)
 
     def resample_nat_targets(self):
-        self.nat_targets_np = self.sample_pz(nat_size)
+        self.nat_targets_np = self.sample_pz(opts['nat_size'])
         self.sess.run(self.update_nat_targets_op, feed_dict={self.nat_targets_update_ph: self.nat_targets_np})
 
     def add_inputs_placeholders(self):
+        opts = self.opts
         shape = self.data_shape
         data = tf.placeholder(
             tf.float32, [None] + shape, name='real_points_ph')
@@ -252,6 +178,7 @@ class VAE(object):
         self.sample_noise = noise
 
     def add_training_placeholders(self):
+        opts = self.opts
         decay = tf.placeholder(tf.float32, name='rate_decay_ph')
         wae_lambda = tf.placeholder(tf.float32, name='lambda_ph')
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
@@ -260,27 +187,15 @@ class VAE(object):
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
-        #self.zxz_lambda = zxz_lambda
 
     def sinkhorn_loss(self, sample_qz, sample_pz):
-        decayed_epsilon = tf.constant(sinkhorn_epsilon)
-        OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=sinkhorn_iters)
+        opts = self.opts
+        decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
+        OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         return OT
 
-    def pretrain_loss(self):
-        mean_pz = tf.reduce_mean(self.sample_noise, axis=0, keep_dims=True)
-        mean_qz = tf.reduce_mean(self.encoded, axis=0, keep_dims=True)
-        mean_loss = tf.reduce_mean(tf.square(mean_pz - mean_qz))
-        cov_pz = tf.matmul(self.sample_noise - mean_pz,
-                           self.sample_noise - mean_pz, transpose_a=True)
-        cov_pz /= e_pretrain_sample_size - 1.
-        cov_qz = tf.matmul(self.encoded - mean_qz,
-                           self.encoded - mean_qz, transpose_a=True)
-        cov_qz /= e_pretrain_sample_size - 1.
-        cov_loss = tf.reduce_mean(tf.square(cov_pz - cov_qz))
-        return mean_loss + cov_loss
-
     def add_savers(self):
+        opts = self.opts
         saver = tf.train.Saver(max_to_keep=10)
         tf.add_to_collection('real_points_ph', self.sample_points)
         tf.add_to_collection('noise_ph', self.sample_noise)
@@ -289,7 +204,8 @@ class VAE(object):
         self.saver = saver
 
     def matching_penalty(self):
-        if z_test_scope == 'global':
+        opts = self.opts
+        if opts['z_test_scope'] == 'global':
             sample_qz = self.x_latents_with_current_batch
             sample_pz = self.nat_targets
         else:
@@ -301,59 +217,36 @@ class VAE(object):
         return loss_match, loss_gan
 
     def optimizer(self, lr, decay=1.):
+        opts = self.opts
+        lr = opts['lr']
         lr *= decay
-        if optimizer == "sgd":
+        if opts['optimizer'] == "sgd":
             return tf.train.GradientDescentOptimizer(lr)
-        elif optimizer == "adam":
-            return tf.train.AdamOptimizer(lr, beta1=opts["adam_beta1"])
+        elif opts['optimizer'] == "adam":
+            return tf.train.AdamOptimizer(lr, beta1=opts['adam_beta1'])
         else:
             assert False, 'Unknown optimizer.'
 
     def add_optimizers(self):
         encoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='encoder')
-
-        if e_pretrain:
-            opt = self.optimizer(lr)
-            self.pretrain_opt = opt.minimize(loss=self.loss_pretrain,
-                                             var_list=encoder_vars)
-        else:
-            self.pretrain_opt = None
-
-
+        self.pretrain_opt = None
+        
     def sample_pz(self, num=100):
+        opts = self.opts
         noise = None
-        distr = pz
+        distr = opts['pz']
         if distr == 'uniform':
             noise = np.random.uniform(
-                -1, 1, [num, zdim]).astype(np.float32)
+                -1, 1, [num, opts['zdim']]).astype(np.float32)
         elif distr in ('normal', 'sphere'):
-            mean = np.zeros(zdim)
-            cov = np.identity(zdim)
+            mean = np.zeros(opts['zdim'])
+            cov = np.identity(opts['zdim'])
             noise = np.random.multivariate_normal(
                 mean, cov, num).astype(np.float32)
             if distr == 'sphere':
                 noise = noise / np.sqrt(
                     np.sum(noise * noise, axis=1))[:, np.newaxis]
-        return pz_scale * noise
-
-    def pretrain_encoder(self, data):
-        steps_max = 200
-        batch_size = e_pretrain_sample_size
-        for step in range(steps_max):
-            data_ids = np.random.choice(self.train_size, min(self.train_size, batch_size),
-                                        replace=False)
-            batch_images = data.data[data_ids].astype(np.float)
-            batch_noise =  self.sample_pz(batch_size)
-
-            [_, loss_pretrain] = self.sess.run(
-                [self.pretrain_opt,
-                 self.loss_pretrain],
-                feed_dict={self.sample_points: batch_images,
-                           self.sample_noise: batch_noise,
-                           self.is_training: True})
-
-            if loss_pretrain < 0.1:
-                break
+        return opts['pz_scale'] * noise
 
     def encode(self, x, batch_size):
         latents_list = []
@@ -365,21 +258,22 @@ class VAE(object):
         return latents
 
     def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
+        opts = self.opts
         if ids is not None:
             data_temp = data.data[ids]
         else:
-            data_temp = data.data[:nat_size]
+            data_temp = data.data[:self.opts['nat_size']]
  
         latents = self.encode(data_temp, batch_size)
         print("Recalculated latents, shape: ", latents.shape)
 
         if overwrite_placeholder:
             if ids is not None:
-                ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + recalculate_size)]
+                ids_to_update = [i for i in range(self.nat_pos, self.nat_pos + self.opts['recalculate_size'])]
                 # Old eval op: tf.scatter_update(self.x_latents, ids_to_update, latents).eval(session=self.sess)
                 self.sess.run(self.scatter_update_x_latents_op, feed_dict={self.su_ids_to_update_ph: ids_to_update, self.su_latents_ph: latents})
                 self.x_latents_np[ids_to_update] = latents
-                self.nat_pos = (self.nat_pos + recalculate_size) % nat_size
+                self.nat_pos = (self.nat_pos + self.opts['recalculate_size']) % self.opts['nat_size']
             else:
                 # Old eval op: self.x_latents.assign(latents).eval(session=self.sess)
                 self.sess.run(self.update_x_latents_op, feed_dict={self.x_latents_update_ph: latents})
@@ -387,26 +281,24 @@ class VAE(object):
                 self.nat_pos = 0
         return latents
 
-############################################################################
 
+    
     def train(self, data):
+        opts = self.opts
         logging.error('Training WAE')
         losses = []
         losses_match = []
         encoding_changes = []
         enc_test_prev = None
-        batches_num = self.train_size // batch_size
+        batches_num = self.train_size // opts['batch_size']
 
         self.sess.run(self.init)
-
-        if e_pretrain:
-            logging.error('Pretraining the encoder')
-            self.pretrain_encoder(data)
-            logging.error('Pretraining the encoder done.')
 
         self.start_time = time.time()
         counter = 0
         decay = 1.
+        wae_lambda = opts['lambda']
+        batch_size = opts['batch_size']
 
         # Variables for dynamic updates
         wait = 0
@@ -420,7 +312,7 @@ class VAE(object):
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
-          for epoch in range(epoch_num):
+          for epoch in range(opts['epoch_num']):
 
             # Update learning rate if necessary
 
@@ -448,21 +340,18 @@ class VAE(object):
 
             # Save the model
 
-            if epoch > 0 and epoch % save_every_epoch == 0:
-                self.saver.save(self.sess,
-                                 os.path.join(work_dir,
-                                              'checkpoints',
-                                              'trained-wae'),
-                                 global_step=counter)
+            if epoch > 0 and epoch % opts['save_every_epoch'] == 0:
+                self.saver.save(self.sess, os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae'),
+                                global_step=counter)
 
             # Iterate over batches
 
-            if nat_resampling == 'epoch':
+            if self.opts['nat_resampling'] == 'epoch':
                 self.resample_nat_targets()
 
             for it in range(batches_num):
 
-                if nat_resampling == 'batch':
+                if self.opts['nat_resampling'] == 'batch':
                     self.resample_nat_targets()
 
                 # Sample batches of data points and Pz noise
@@ -478,12 +367,12 @@ class VAE(object):
                 batch_images = data.data[data_ids].astype(np.float)
                 batch_noise = self.sample_pz(opts['batch_size'])
 
-                if counter % print_every == 0:
+                if counter % opts['print_every'] == 0:
                     (x_latents_np, nat_targets_np) = self.sess.run([self.x_latents, self.nat_targets], feed_dict={self.sample_points: batch_images, self.is_training:False})
                     print("frame,", nat_targets_np.shape)
                     x_latents_unif = x_latents_np[:, :2]
                     nat_targets_unif = nat_targets_np[:, :2]
-                    if pz == 'normal':
+                    if opts['pz'] == 'normal':
                         x_latents_unif = norm.cdf(x_latents_unif) * 2 - 1
                         nat_targets_unif = norm.cdf(nat_targets_unif) * 2 - 1                            
                     frame = sinkhorn.draw_edges(x_latents_unif, nat_targets_unif, VIDEO_SIZE, radius=1.5, edges=False)
@@ -526,7 +415,7 @@ class VAE(object):
 
                 # Update learning rate if necessary
 
-                if lr_schedule == "plateau":
+                if opts['lr_schedule'] == "plateau":
                     # First 30 epochs do nothing
                     if epoch >= 30:
                         # If no significant progress was made in last 10 epochs
@@ -589,7 +478,7 @@ class VAE(object):
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
                              proj_move[:, 0], proj_move[:, 1], color = "c",
                               angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
-                    plt.savefig(os.path.join(opts["work_dir"] + str(counter - 1) + "_pos_latents.png"), dpi=200)
+                    plt.savefig(os.path.join(opts['work_dir'] + str(counter - 1) + "_pos_latents.png"), dpi=200)
                     plt.close()
 
                 prev_proj_grads_of_latents = np.copy(proj_grads_of_latents)
@@ -600,13 +489,12 @@ class VAE(object):
 
                 # Print debug info
 
-                if counter % print_every == 0:
+                if counter % opts['print_every'] == 0:
                     now = time.time()
 
                     # Auto-encoding test images
 
-                    enc_test = self.sess.run(
-                        self.encoded,
+                    enc_test = self.sess.run(self.encoded,
                         feed_dict={self.sample_points: data.test_data[:self.num_pics],
                                    self.is_training: False})
 
@@ -619,8 +507,9 @@ class VAE(object):
 
                     enc_test_prev = enc_test
 
+                    nat_size = self.opts['nat_size']
                     assert len(data.test_data) >= nat_size
-                    test_latents = self.encode(data.test_data[:nat_size], batch_size)
+                    test_latents = self.encode(data.test_data[:nat_size], opts['batch_size'])
                     test_targets = self.sample_pz(nat_size)
 
                     global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss_tf,
@@ -631,15 +520,14 @@ class VAE(object):
 
                     # Auto-encoding training images
 
-                    enc_train = self.sess.run(
-                        self.encoded,
+                    enc_train = self.sess.run(self.encoded,
                         feed_dict={self.sample_points: data.data[:self.num_pics],
                                    self.is_training: False})
 
                     # Random samples generated by the model
 
                     debug_str = 'EPOCH: %d/%d, BATCH:%d/%d, BATCH/SEC:%.2f' % (
-                        epoch + 1, epoch_num,
+                        epoch + 1, opts['epoch_num'],
                         it + 1, batches_num,
                         float(counter) / (now - self.start_time))
                     debug_str += ' (WAE_LOSS=%.5f, MATCH_LOSS=%.5f)' % (
@@ -657,11 +545,8 @@ class VAE(object):
         # Save the final model
         video.close()
         gradlog_file.close()
-        if True:#epoch > 0:
-            self.saver.save(self.sess,
-                             os.path.join(work_dir,
-                                          'checkpoints',
-                                          'trained-wae-final'),
+        if True:
+            self.saver.save(self.sess, os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae-final'),
                              global_step=counter)
 
             

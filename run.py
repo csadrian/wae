@@ -10,6 +10,7 @@ import utils
 import datetime
 import fideval
 import picture_plot
+from toy_sinkhorn import simple_encoder
 
 import neptune
 
@@ -242,11 +243,14 @@ def main():
                 neptune.append_tag(tag)
 
         # Creating WAE model
-        wae = WAE(opts, train_size)
+        
+        #wae = WAE(opts, train_size)
+        enc = simple_encoder(opts, train_size)
         data.num_points = train_size
 
         # Training WAE
-        wae.train(data)
+        #wae.train(data)
+        enc.train(data)
 
         if use_neptune:
             exp.stop()
