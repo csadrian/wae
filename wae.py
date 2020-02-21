@@ -1166,8 +1166,8 @@ class WAE(object):
                     feed_dict = feed_d)[0])
                 """
 
-                #nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
-                #proj_nat_targets = nat_targets_np[:, :2]
+                nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
+                proj_nat_targets = nat_targets_np[:, :2]
         
                 pos_of_latents = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
                 grads_and_pos = np.concatenate((grads_of_latents, pos_of_latents), axis = 1)
@@ -1183,7 +1183,7 @@ class WAE(object):
                 
                 if counter > 0:
                     fig, ax = plt.subplots()
-                    #ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
+                    ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
                     ax.scatter(x = prev_proj_pos_of_latents[:, 0], y = prev_proj_pos_of_latents[:, 1], s = 20, c = 'g')
                     ax.scatter(x = prev_proj_current_batch[:, 0], y = prev_proj_current_batch[:, 1], s = 20, c = 'm')
                     ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], s = 5, c = 'b')
@@ -1194,6 +1194,8 @@ class WAE(object):
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
                              proj_move[:, 0], proj_move[:, 1], color = "c",
                               angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
+                    plt.xlim(-1, 1)
+                    plt.ylim(-1, 1)
                     plt.savefig(os.path.join(opts["work_dir"] + str(counter - 1) + "_pos_latents.png"), dpi=200)
                     plt.close()
 

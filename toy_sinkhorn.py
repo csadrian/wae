@@ -75,7 +75,7 @@ def encoder(opts, inputs, reuse=False, is_training=False):
     inputs = tf.cond(is_training,
                      lambda: add_noise(inputs), lambda: do_nothing(inputs))
 
-    num_units = 10
+    num_units = 100
     num_layers = 2
 
     with tf.variable_scope("encoder", reuse=reuse):
@@ -261,8 +261,19 @@ class simple_encoder(object):
             assert False, 'Unknown optimizer.'
 
     def add_optimizers(self):
+        opts = self.opts
+        lr = opts['lr']
+        lr_adv = opts['lr_adv']
         encoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='encoder')
+
+        # encoder optimizer
+        opt = self.optimizer(lr, self.lr_decay)
+        self.enc_opt = opt.minimize(loss=self.wae_objective,
+                              var_list=encoder_vars)
+
         self.pretrain_opt = None
+    
+
         
     def sample_pz(self, num=100):
         opts = self.opts
@@ -313,7 +324,6 @@ class simple_encoder(object):
                 self.x_latents_np = latents
                 self.nat_pos = 0
         return latents
-
 
     
     def train(self, data):
@@ -429,13 +439,13 @@ class simple_encoder(object):
 
                 #ot_grads_and_vars_np = self.sess.run([self.ot_grads_and_vars], feed_dict=feed_d)
 
-                run_ops = [self.wae_objective, self.penalty]
+                run_ops = [self.enc_opt, self.wae_objective, self.penalty]
                 len_orig_run_ops = len(run_ops)
                 for key, value in self.get_tensors_to_log().items():
                     run_ops.append(value)
 
                 run_result = self.sess.run(run_ops, feed_dict=feed_d)
-                [loss, loss_match] = run_result[:len_orig_run_ops]
+                [_, loss, loss_match] = run_result[:len_orig_run_ops]
 
                 run_result_dict = {}
                 i = 0
@@ -477,15 +487,15 @@ class simple_encoder(object):
 
                 # Update regularizer if necessary
                 wait_lambda += 1
-                
+
                 grad = tf.gradients(self.sinkhorn_loss(self.x_latents, self.nat_targets), self.x_latents)
                 #grad = tf.gradients(self.x_latents, self.x_latents)
                 grads_of_latents = np.asarray(self.sess.run(
                     grad, feed_dict = feed_d)[0])
 
                 
-                #nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
-                #proj_nat_targets = nat_targets_np[:, :2]
+                nat_targets_np = self.sess.run(self.nat_targets, feed_dict = feed_d)
+                proj_nat_targets = nat_targets_np[:, :2]
         
                 pos_of_latents = np.asarray(self.sess.run(self.x_latents, feed_dict = feed_d))
                 grads_and_pos = np.concatenate((grads_of_latents, pos_of_latents), axis = 1)
@@ -501,13 +511,13 @@ class simple_encoder(object):
                 
                 if counter > 0:
                     fig, ax = plt.subplots()
-                    #ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
+                    ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
+                    ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], s = 5, c = 'b')
                     ax.scatter(x = prev_proj_pos_of_latents[:, 0], y = prev_proj_pos_of_latents[:, 1], s = 20, c = 'g')
                     ax.scatter(x = prev_proj_current_batch[:, 0], y = prev_proj_current_batch[:, 1], s = 20, c = 'm')
-                    ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], s = 5, c = 'b')
                     proj_move = proj_pos_of_latents - prev_proj_pos_of_latents
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
-                              prev_proj_grads_of_latents[:, 0], prev_proj_grads_of_latents[:, 1],
+                              -prev_proj_grads_of_latents[:, 0], -prev_proj_grads_of_latents[:, 1],
                               angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
                              proj_move[:, 0], proj_move[:, 1], color = "c",
