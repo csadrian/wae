@@ -8,20 +8,20 @@ import sinkhorn
 
 
 def main():
-    n, d = 3, 2
+    n, d = 10, 2
     
     latents = tf.placeholder(
             tf.float32, (n, d), name='real_points_ph')
     targets = tf.placeholder(
             tf.float32, (n, d), name='noise_ph')
-    OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(latents, targets, epsilon=0.01, niter=10)
+    sink_eps = 0.1
+    OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(latents, targets, epsilon=sink_eps, niter=10)
 
     OTgrad = tf.gradients(OT, latents)[0]
     with tf.Session() as sess:
         latents_np_start = np.random.normal(size=(n, d))
         targets_np = np.random.normal(size=(n, d))
         N = 10
-        pairs = []
         ots = []
         otgrads = []
         alphas = np.linspace(0, 1, N)
@@ -45,8 +45,9 @@ def main():
                 targets: targets_np
             }
             p = sess.run(tf.exp(P), feed_dict = feed_dict)
-            pair = np.argmax(p[0])
-            pairs.append(pair)
+            pairs = []
+            for j in range(n):
+                pairs.append(np.argmax(p[j]))
             ot = sess.run(OT, feed_dict=feed_dict)
             ots.append(ot)
             otgrad_np = sess.run(OTgrad, feed_dict=feed_dict)[0]
@@ -55,18 +56,22 @@ def main():
 
             fig, ax = plt.subplots()
             plt.scatter(latents_np[:, 0], latents_np[:, 1], c="blue")
+            plt.scatter(latents_np[0, 0], latents_np[0, 1], c="purple")
             plt.scatter(targets_np[:, 0], targets_np[:, 1], c="red")
-            for j in range(n):
-                ax.plot([latents_np[0, 0], targets_np[j, 0]], [latents_np[0, 1], targets_np[j, 1]])
-                ax.annotate(p[0, j], targets_np[j])
+            for k in range(n):
+                for l in range(n):
+                    if p[k, l] > 0.1:
+                        ax.plot([latents_np[k, 0], targets_np[l, 0]], [latents_np[k, 1], targets_np[l, 1]], color = "green")
+                        ax.annotate(p[k, l], [(latents_np[k, 0] + targets_np[l, 0]) / 2, (latents_np[k, 1] + targets_np[l, 1]) / 2])
+                    if l == pairs[k]:
+                        ax.plot([latents_np[k, 0], targets_np[l, 0]], [latents_np[k, 1], targets_np[l, 1]], color = "magenta")
             ax.quiver(latents_np[0, 0], latents_np[0, 1],
                       -otgrad_np[0], -otgrad_np[1],
-                      angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
-            plt.title("Couplings of first point.\niter=%d" % i)
-            plt.savefig("Coupling_iter=%d" % i)
+                      angles = 'xy', scale_units = 'xy', scale = 1, width = 0.005)
+            plt.title("Couplings of first point.\niter=%d, eps=%f" % (i, sink_eps))
+            plt.savefig("Coupling_iter=%d_eps=%f.png" % (i, sink_eps))
             plt.close()
             
-        print("Pairs: ", pairs)
         ots = np.array(ots)
         otgrads = np.array(otgrads)
         fig, ax1 = plt.subplots()
@@ -83,7 +88,7 @@ def main():
         ax2.set_ylabel("OT", color="red")
 
         # plt.plot(alphas, otgrads[:, 0], c="blue") ; plt.plot(alphas, otgrads[:, 1], c="green")
-        plt.savefig("OT_grads.png")
+        plt.savefig("OT_grads_eps=%f.png" % sink_eps)
         #plt.show()
 
 
