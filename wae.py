@@ -934,11 +934,11 @@ class WAE(object):
 
             if opts['lr_schedule'] == "manual":
                 if epoch == 30:
-                    decay = decay / 2.
+                    decay = decay / 1.
                 if epoch == 50:
-                    decay = decay / 5.
+                    decay = decay / 1.
                 if epoch == 100:
-                    decay = decay / 10.
+                    decay = decay / 1.
             elif opts['lr_schedule'] == 'manual_proportional':
                 enum = opts['epoch_num']
                 if epoch == 3* enum//10:
@@ -1181,7 +1181,7 @@ class WAE(object):
                 proj_pos_of_latents = pos_of_latents[:, :2]
                 proj_current_batch = proj_pos_of_latents[it * batch_size : (it + 1) * batch_size]
                 
-                if counter > 0:
+                if counter > 0 and (counter - 1) % 10 == 0:
                     fig, ax = plt.subplots()
                     ax.scatter(x = proj_nat_targets[:, 0], y = proj_nat_targets[:, 1], s = 10, c = 'y')
                     ax.scatter(x = prev_proj_pos_of_latents[:, 0], y = prev_proj_pos_of_latents[:, 1], s = 20, c = 'g')
@@ -1189,13 +1189,13 @@ class WAE(object):
                     ax.scatter(x = proj_pos_of_latents[:, 0], y = proj_pos_of_latents[:, 1], s = 5, c = 'b')
                     proj_move = proj_pos_of_latents - prev_proj_pos_of_latents
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
-                              prev_proj_grads_of_latents[:, 0], prev_proj_grads_of_latents[:, 1],
+                              -prev_proj_grads_of_latents[:, 0], -prev_proj_grads_of_latents[:, 1],
                               angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
                     ax.quiver(prev_proj_pos_of_latents[:, 0], prev_proj_pos_of_latents[:, 1],
                              proj_move[:, 0], proj_move[:, 1], color = "c",
                               angles = 'xy', scale_units = 'xy', scale = 1, width = 0.001)
-                    plt.xlim(-1, 1)
-                    plt.ylim(-1, 1)
+                    #plt.xlim(-1, 1)
+                    #plt.ylim(-1, 1)
                     plt.savefig(os.path.join(opts["work_dir"] + str(counter - 1) + "_pos_latents.png"), dpi=200)
                     plt.close()
 

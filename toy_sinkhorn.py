@@ -33,7 +33,7 @@ def lrelu(x, leak=0.3):
 def batch_norm(opts, _input, is_train, reuse, scope, scale=True):
 
     return tf.contrib.layers.batch_norm(
-        opts, _input, center=True, scale=scale,
+        _input, center=True, scale=scale,
         epsilon=1e-05, decay=0.9,
         is_training=is_train, reuse=reuse, updates_collections=None,
         scope=scope, fused=False)
@@ -76,17 +76,18 @@ def encoder(opts, inputs, reuse=False, is_training=False):
                      lambda: add_noise(inputs), lambda: do_nothing(inputs))
 
     num_units = 100
-    num_layers = 2
+    num_layers = 3
 
     with tf.variable_scope("encoder", reuse=reuse):
         hi = inputs
         i = 0
         for i in range(num_layers):
             hi = linear(opts, hi, num_units, scope='h%d_lin' % i)
-            if opts['batch_norm']:
-                hi = batch_norm(opts, hi, is_training,
+            if opts['batch_norm'] and False:
+                #assert False, "Please don't use batch norm"
+                hi = batch_norm(opts, hi, False,
                                     reuse, scope='h%d_bn' % i)
-            hi = tf.nn.relu(hi)
+            hi = tf.nn.leaky_relu(hi)
         if opts['e_noise'] != 'gaussian':
             res = linear(opts, hi, opts['zdim'], 'hfinal_lin')
         else:
@@ -164,6 +165,8 @@ class simple_encoder(object):
     def add_nat_placeholders(self):
         opts = self.opts
         self.nat_targets_np = self.sample_pz(self.opts['nat_size'])
+        self.nat_targets_np_orig = self.nat_targets_np.copy()
+                
         self.nat_targets = tf.Variable(self.nat_targets_np, dtype=tf.float32, trainable=False)
         self.x_latents = tf.Variable(tf.zeros((opts['nat_size'], opts['zdim']), dtype=tf.float32), trainable=False)
         self.batch_indices_mod = tf.placeholder(tf.int64, shape=(opts['batch_size'],))
@@ -198,7 +201,14 @@ class simple_encoder(object):
 
     def resample_nat_targets(self):
         self.nat_targets_np = self.sample_pz(opts['nat_size'])
+        self.nat_targets_np_orig = self.nat_targets_np.copy()
         self.sess.run(self.update_nat_targets_op, feed_dict={self.nat_targets_update_ph: self.nat_targets_np})
+
+    def resize_nat_targets(self, factor):
+        self.nat_targets_resized_np = self.nat_targets_np_orig * factor
+        self.nat_targets_np = self.nat_targets_resized_np.copy()
+        print(self.nat_targets_np)
+        self.sess.run(self.update_nat_targets_op, feed_dict={self.nat_targets_update_ph: self.nat_targets_resized_np})
 
     def add_inputs_placeholders(self):
         opts = self.opts
@@ -225,7 +235,7 @@ class simple_encoder(object):
         opts = self.opts
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
         OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
-        return OT
+        return tf.math.log(1.0 + OT)
 
     def add_savers(self):
         opts = self.opts
@@ -350,11 +360,14 @@ class simple_encoder(object):
 
         gradlog_file = open("gradlog.txt", "w")
         
+        factors = np.linspace(0.0, 1.0, num=opts['epoch_num'])
+        
         VIDEO_SIZE = 512
         with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 3.0) as video:
           #if True:
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
+
 
           for epoch in range(opts['epoch_num']):
 
@@ -383,7 +396,6 @@ class simple_encoder(object):
                 decay = 1.0 * 10**(-epoch / float(opts['lr_schedule']))
 
             # Save the model
-
             if epoch > 0 and epoch % opts['save_every_epoch'] == 0:
                 self.saver.save(self.sess, os.path.join(opts['work_dir'], 'checkpoints', 'trained-wae'),
                                 global_step=counter)
@@ -392,6 +404,9 @@ class simple_encoder(object):
 
             if self.opts['nat_resampling'] == 'epoch':
                 self.resample_nat_targets()
+
+            self.resize_nat_targets(factors[epoch])
+            print("resize factor", factors[epoch])
 
             for it in range(batches_num):
 

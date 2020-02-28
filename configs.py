@@ -15,16 +15,16 @@ config_celebA['input_normalize_sym'] = True
 config_celebA['data_dir'] = 'datasets/celeba/img_align_celeba'
 config_celebA['celebA_crop'] = 'closecrop' # closecrop, resizecrop
 
-config_celebA['optimizer'] = 'adam' # adam, sgd
+config_celebA['optimizer'] = 'sgd' # adam, sgd
 config_celebA['adam_beta1'] = 0.5
 config_celebA['lr'] = 0.001 #0.001 for WAE-MMD and 0.0003 for WAE-GAN
 config_celebA['lr_adv'] = 0.001
-config_celebA['lr_schedule'] = 'manual' #manual, plateau, or a number
+config_celebA['lr_schedule'] = "manual" #manual, plateau, or a number
 config_celebA['batch_size'] = 100
 config_celebA['epoch_num'] = 50
 config_celebA['init_std'] = 0.0099999
 config_celebA['init_bias'] = 0.0
-config_celebA['batch_norm'] = False
+config_celebA['batch_norm'] = True
 config_celebA['batch_norm_eps'] = 1e-05
 config_celebA['batch_norm_decay'] = 0.9
 config_celebA['conv_filters_dim'] = 5
@@ -299,4 +299,5 @@ config_noise_unif['pz'] = 'uniform'
 config_noise_unif['e_noise'] = 'deterministic'
 config_noise_unif['e_pretrain'] = False
 config_noise_unif['input_normalize_sym'] = False
+config_noise_unif['optimizer'] = 'sgd'
 
