@@ -684,6 +684,7 @@ class WAE(object):
 
         gvs = opt.compute_gradients(self.wae_objective, var_list=encoder_vars + decoder_vars)
         if self.opts['grad_clip'] is not None:
+            print("Utilizing gradient clipping with value: {}".format(self.opts['grad_clip']))
             capped_gvs = [(tf.clip_by_value(grad, -self.opts['grad_clip'], self.opts['grad_clip']), var) for grad, var in gvs]
         else:
             capped_gvs = gvs
