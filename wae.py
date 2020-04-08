@@ -129,7 +129,7 @@ class WAE(object):
             self.length_loss = self.length_loss(self.encoded)
             self.wae_objective += self.length_lambda * self.length_loss
         else:
-            self.length_loss = 0.0
+            self.length_loss = tf.constant(0.0)
 
         self.add_to_log('length_loss', self.length_loss)
 
