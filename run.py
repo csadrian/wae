@@ -68,6 +68,7 @@ parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags 
 parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
 parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
 parser.add_argument('--grad_clip', dest='grad_clip', type=float, default=None, help='Gradient clip value')
+parser.add_argument('--length_lambda', dest='length_lambda', type=float, default=0.0, help='Length regularization (for spherical)')
 
 # Params for global z_tests
 parser.add_argument('--z_test_scope', dest='z_test_scope', type=str, default='local', help='Scope of the z_test, can be: batch, nat')
@@ -161,6 +162,9 @@ def main():
         opts['e_noise'] = FLAGS.enc_noise
     if FLAGS.z_test_scope is not None:
         opts['z_test_scope'] = FLAGS.z_test_scope
+
+    if FLAGS.length_lambda is not None:
+        opts['length_lambda'] = FLAGS.length_lambda
 
     if FLAGS.grad_clip is not None:
         opts['grad_clip'] = FLAGS.grad_clip

@@ -111,7 +111,7 @@ class WAE(object):
         self.latents_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.targets_ph = tf.placeholder(tf.float32, shape=(opts['nat_size'], opts['zdim']))
         self.sinkhorn_loss_tf = self.sinkhorn_loss(self.latents_ph, self.targets_ph)
-
+        
         self.rec_grad = tf.reduce_mean(tf.abs(tf.gradients(self.loss_reconstruct, [self.encoded])))
 
         if self.stay_loss == None:
@@ -122,6 +122,11 @@ class WAE(object):
             self.wae_objective = self.rec_lambda * self.loss_reconstruct + \
                 self.wae_lambda * self.penalty + \
                 stay_lambda * self.stay_loss
+
+        if opts['length_lambda'] is not None and opts['length_lambda'] != 0.0:
+            print("Applying length penalty, lambda: {}".format(opts['length_lambda']))
+            self.length_loss = self.length_loss(self.encoded)
+            self.wae_objective += self.length_lambda * self.length_loss
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -216,16 +221,21 @@ class WAE(object):
         is_training = tf.placeholder(tf.bool, name='is_training_ph')
         rec_lambda = tf.placeholder(tf.float32, name='rec_lambda_ph')
         zxz_lambda = tf.placeholder(tf.float32, name='zxz_lambda_ph')
+        length_lambda = tf.placeholder(tf.float32, name='length_lambda_ph')
 
         self.lr_decay = decay
         self.wae_lambda = wae_lambda
         self.is_training = is_training
         self.rec_lambda = rec_lambda
         self.zxz_lambda = zxz_lambda
+        self.length_lambda = length_lambda
 
         #self.ids_to_update_ph = tf.placeholder(tf.int32, shape=(self.opts['batch_size'])
         #self.values_for_update_ph = tf.placeholder(tf.float32, shape=(self.opts['batch_size'])
         #self.update_latents_op = tf.scatter_update(self.x_latents, self.ids_to_update_ph, latents)
+
+    def length_loss(self, x, target_length=1.0):
+        return tf.square(target_length-tf.norm(x, axis=-1))
 
     def stay_loss(self):
 
@@ -906,8 +916,8 @@ class WAE(object):
         rec_lambda = opts['rec_lambda']
         zxz_lambda = opts['zxz_lambda']
         batch_size = opts['batch_size']
-
-
+        length_lambda = opts['length_lambda']
+        
         # Weights of the extra costs
         extra_cost_weights = []
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -1023,6 +1033,7 @@ class WAE(object):
                     self.lr_decay: decay,
                     self.wae_lambda: wae_lambda,
                     self.rec_lambda: rec_lambda,
+                    self.length_lambda: length_lambda,
                     self.is_training: True,
                     self.batch_indices_mod: data_ids_mod}
 
@@ -1084,6 +1095,7 @@ class WAE(object):
                                    self.sample_noise: batch_noise,
                                    self.wae_lambda: wae_lambda,
                                    self.rec_lambda: rec_lambda,
+                                   self.length_lambda: length_lambda,
                                    self.lr_decay: decay,
                                    self.is_training: True})
                
@@ -1130,6 +1142,7 @@ class WAE(object):
                     neptune.send_metric('stay_loss', x=counter, y=stay_loss)
                     neptune.send_metric('wae_lambda', x=counter, y=wae_lambda)
                     neptune.send_metric('rec_lambda', x=counter, y=rec_lambda)
+                    neptune.send_metric('length_lambda', x=counter, y=length_lambda)
                     neptune.send_metric('lr', x=counter, y=decay)
                     #neptune.send_metric('rec_grad_np', x=counter, y=rec_grad_np)
                     #neptune.send_metric('global_grad_np', x=counter, y=global_grad_np)
