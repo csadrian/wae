@@ -42,7 +42,7 @@ name="sinkhorn-global-celeba_res=${nat_resampling}_exp=${exp}_batch_size=${bs}_l
 CUDA_VISIBLE_DEVICES=${i} python run.py --pz=${pz} --train_size=${train_size} \
     --z_test=${z_test} --z_test_scope=${z_test_scope} \
     --sinkhorn_sparse=False --enc_noise=deterministic --name="${name}" \
-    --recalculate_size=${recalculate_size} --nat_size=${nat_size} --nat_resampling=${nat_resampling} --tag="sinkhorn,local_vs_global,global,final0" \
+    --recalculate_size=${recalculate_size} --nat_size=${nat_size} --nat_resampling=${nat_resampling} --tag="sinkhorn,local_vs_global,local,final0" \
     --exp=${exp} --rec_lambda=${rec_lambda} --wae_lambda=${wae_lambda} --epoch_num=${epoch_num} \
     --sinkhorn_epsilon=${sinkhorn_epsilon} --sinkhorn_iters=${sinkhorn_iters} \
     --zdim=${zdim} --e_pretrain=${e_pretrain} --batch_size=${bs} --lr=${lr} --work_dir=out/sinkhorn_${name} \
