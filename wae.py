@@ -125,6 +125,7 @@ class WAE(object):
 
         if opts['length_lambda'] > 0.0:
             print("Applying length penalty, lambda: {}".format(opts['length_lambda']))
+            assert opts['pz'] == 'sphere', "Applying legth loss, but pz is not a sphere."
             self.length_loss = self.length_loss(self.encoded)
             self.wae_objective += self.length_lambda * self.length_loss
         else:
