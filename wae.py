@@ -130,6 +130,8 @@ class WAE(object):
         else:
             self.length_loss = 0.0
 
+        self.add_to_log('length_loss', self.length_loss)
+
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
             improved_wae.add_aefixedpoint_cost(opts, self)
@@ -153,7 +155,7 @@ class WAE(object):
         self.tensors_to_log[key] = value
 
     def get_tensors_to_log(self):
-        keys = ['sinkhorn_ot', 'mmd_linear', 'mmd']  
+        keys = ['sinkhorn_ot', 'mmd_linear', 'mmd']
         for key in keys:
             if key not in self.tensors_to_log:
                 self.tensors_to_log[key] = tf.constant(0.0)
