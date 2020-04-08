@@ -47,7 +47,7 @@ CUDA_VISIBLE_DEVICES=${i} python run.py --pz=${pz} --train_size=${train_size} \
     --sinkhorn_epsilon=${sinkhorn_epsilon} --sinkhorn_iters=${sinkhorn_iters} \
     --zdim=${zdim} --e_pretrain=${e_pretrain} --batch_size=${bs} --lr=${lr} --work_dir=out/sinkhorn_${name} \
     --shuffle=True --grad_clip=${grad_clip} \
-        > out/${name}.cout 2> out/${name}.cerr
+        > out/${name}.cout 2> out/${name}.cerr &
 
 ((i=i+1))
 done
