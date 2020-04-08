@@ -1283,7 +1283,7 @@ class WAE(object):
                                Qz_train, Qz_test, Pz, nat_targets_proj,
                                losses_rec, losses_match, blurr_vals,
                                encoding_changes,
-                               'res_e%04d_mb%05d.png' % (epoch, it)
+                               'res_e%04d_mb%05d.jpg' % (epoch, it)
                                #, P_np
                                )
 
@@ -1307,7 +1307,7 @@ class WAE(object):
                         neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
                         print("skipping sending image, issues with neptune")
-                        # neptune.send_image('summary_plot', summary_plot)
+                        neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
         video.close()
@@ -1524,7 +1524,7 @@ def save_plots(opts, sample_train, sample_test,
     # Saving
     utils.create_dir(opts['work_dir'])
     fig.savefig(utils.o_gfile((opts["work_dir"], filename), 'wb'),
-                dpi=dpi, format='png')
+                dpi=dpi, format='jpg')
 
     buffer = io.StringIO()
     canvas = plt.get_current_fig_manager().canvas
