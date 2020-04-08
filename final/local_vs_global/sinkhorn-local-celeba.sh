@@ -5,7 +5,7 @@ echo $dt
 
 iteration_target=200000
 
-i=0
+i=4
 
 for e_pretrain in False True
 do
@@ -30,11 +30,11 @@ recalculate_size=5000
 epoch_num=$((iteration_target * bs / train_size))
 
 z_test=sinkhorn
-z_test_scope=global
+z_test_scope=local
 
 rec_lambda=1.0
 sinkhorn_iters=10
-sinkhorn_epsilon=0.01
+sinkhorn_epsilon=0.001
 
 nat_resampling=None
 
