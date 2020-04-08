@@ -236,7 +236,7 @@ def main():
     if opts['mode'] == 'train':
         if use_neptune:
             neptune.init(project_qualified_name="csadrian/global-sinkhorn")
-            exp = neptune.create_experiment(params=opts, name=opts['name'])
+            exp = neptune.create_experiment(params=opts, name=opts['name'], upload_source_files=['wae.py', 'run.py', 'models.py'])
 
             for tag in opts['tags'].split(','):
                 neptune.append_tag(tag)
