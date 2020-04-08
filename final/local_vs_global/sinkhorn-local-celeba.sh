@@ -17,7 +17,7 @@ for lr in 0.001
 do
 for wae_lambda in 1.0
 do
-for grad_clip in None 0.1
+for grad_clip in -1.0 0.1
 do
 
 exp=celebA
