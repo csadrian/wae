@@ -681,9 +681,13 @@ class WAE(object):
 
         # Auto-encoder optimizer
         opt = self.optimizer(lr, self.lr_decay)
-        self.ae_opt = opt.minimize(loss=self.wae_objective,
-                              var_list=encoder_vars + decoder_vars)
 
+        gvs = opt.compute_gradients(self.wae_objective, var_list=encoder_vars + decoder_vars)
+        if self.opts['grad_clip'] is not None:
+            capped_gvs = [(tf.clip_by_value(grad, -self.opts['grad_clip'], self.opts['grad_clip']), var) for grad, var in gvs]
+        else:
+            capped_gvs = gvs
+        self.ae_opt = opt.apply_gradients(capped_gvs)
 
         opt = self.optimizer(lr, self.lr_decay)
         self.zxz_opt = opt.minimize(loss=self.zxz_lambda*self.zxz_loss, var_list=decoder_vars)
