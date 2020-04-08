@@ -920,6 +920,8 @@ class WAE(object):
         VIDEO_SIZE = 512
         with FFMPEG_VideoWriter(opts['name'] + 'out.mp4', (VIDEO_SIZE, VIDEO_SIZE), 3.0) as video:
           #if True:
+          neptune.send_text('video_filename', video.filename)
+          neptune.send_text('video_filepath', os.path.abspath(video.filename))
 
           self.recalculate_x_latents(data, self.train_size, batch_size, overwrite_placeholder=True, ids=None)
 
