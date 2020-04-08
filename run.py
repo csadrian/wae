@@ -67,7 +67,7 @@ parser.add_argument('--rec_lambda', dest='rec_lambda', type=float, default=1.0, 
 parser.add_argument('--tags', dest='tags', type=str, default="junk", help='Tags for the experiment (comma separated)')
 parser.add_argument('--shuffle', dest='shuffle', type=str2bool, default=True, help='Shuffle train set when training')
 parser.add_argument('--feed_by_score_from_epoch', dest='feed_by_score_from_epoch', type=int, default=-1, help='Feed by score from epoch')
-parser.add_argument('--grad_clip', dest='grad_clip', type=float, default=None, help='Gradient clip value')
+parser.add_argument('--grad_clip', dest='grad_clip', type=float, default=-1.0, help='Gradient clip value, negative number disables grad_clip.')
 parser.add_argument('--length_lambda', dest='length_lambda', type=float, default=0.0, help='Length regularization (for spherical)')
 
 # Params for global z_tests

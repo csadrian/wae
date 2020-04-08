@@ -123,10 +123,12 @@ class WAE(object):
                 self.wae_lambda * self.penalty + \
                 stay_lambda * self.stay_loss
 
-        if opts['length_lambda'] is not None and opts['length_lambda'] != 0.0:
+        if opts['length_lambda'] > 0.0:
             print("Applying length penalty, lambda: {}".format(opts['length_lambda']))
             self.length_loss = self.length_loss(self.encoded)
             self.wae_objective += self.length_lambda * self.length_loss
+        else:
+            self.length_loss = 0.0
 
         # Extra costs if any
         if 'w_aef' in opts and opts['w_aef'] > 0:
@@ -693,7 +695,7 @@ class WAE(object):
         opt = self.optimizer(lr, self.lr_decay)
 
         gvs = opt.compute_gradients(self.wae_objective, var_list=encoder_vars + decoder_vars)
-        if self.opts['grad_clip'] is not None:
+        if self.opts['grad_clip'] >= 0.0:
             print("Utilizing gradient clipping with value: {}".format(self.opts['grad_clip']))
             capped_gvs = [(tf.clip_by_value(grad, -self.opts['grad_clip'], self.opts['grad_clip']), var) for grad, var in gvs]
         else:
