@@ -241,7 +241,7 @@ class WAE(object):
         #self.update_latents_op = tf.scatter_update(self.x_latents, self.ids_to_update_ph, latents)
 
     def length_loss(self, x, target_length=1.0):
-        return tf.square(target_length-tf.norm(x, axis=-1))
+        return tf.reduce_mean(tf.square(target_length-tf.norm(x, axis=-1)))
 
     def stay_loss(self):
 
