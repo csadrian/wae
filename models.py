@@ -62,12 +62,12 @@ def encoder(opts, inputs, reuse=False, is_training=False):
 
         if opts['pz'] == 'sphere':
             # Projecting back to the sphere
-            res = tf.nn.l2_normalize(res, dim=1)
+            out = tf.nn.l2_normalize(res, dim=1)
         elif opts['pz'] == 'uniform':
             # Mapping back to the [-1,1]^zdim box
-            res = tf.nn.tanh(res)
+            out = tf.nn.tanh(res)
 
-        return res, noise_matrix
+        return out, noise_matrix, res
 
 def decoder(opts, noise, reuse=False, is_training=True):
     assert opts['dataset'] in datashapes, 'Unknown dataset!'

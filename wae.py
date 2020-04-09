@@ -72,10 +72,11 @@ class WAE(object):
         if opts['e_noise'] in ('deterministic', 'implicit', 'add_noise'):
             self.enc_mean, self.enc_sigmas = None, None
             if opts['e_noise'] == 'implicit':
-                self.encoded, self.encoder_A = res
+                self.encoded, self.encoder_A, self.encoded_raw = res
             else:
-                self.encoded, _ = res
+                self.encoded, _, self.encoded_raw = res
         elif opts['e_noise'] == 'gaussian':
+            raise NotImplementedError # self.encoded_raw not defined here yet.
             # Encoder outputs means and variances of Gaussian
             enc_mean, enc_sigmas = res[0]
             enc_sigmas = tf.clip_by_value(enc_sigmas, -50, 50)
@@ -126,7 +127,7 @@ class WAE(object):
         if opts['length_lambda'] > 0.0:
             print("Applying length penalty, lambda: {}".format(opts['length_lambda']))
             assert opts['pz'] == 'sphere', "Applying legth loss, but pz is not a sphere."
-            self.length_loss = self.length_loss(self.encoded)
+            self.length_loss = self.length_loss(self.encoded_raw)
             self.wae_objective += self.length_lambda * self.length_loss
         else:
             self.length_loss = tf.constant(0.0)
@@ -284,7 +285,7 @@ class WAE(object):
 
         z = self.sample_noise
         decoded, decoded_logits = decoder(opts, reuse=True, noise=z, is_training=self.is_training)
-        zxz, _ = encoder(opts, reuse=True, inputs=decoded, is_training=self.is_training)
+        zxz, _, _ = encoder(opts, reuse=True, inputs=decoded, is_training=self.is_training)
         loss = tf.reduce_sum(tf.square(zxz - z), axis=[1])
         self.zxz_loss = tf.reduce_mean(loss)
         return self.zxz_loss
