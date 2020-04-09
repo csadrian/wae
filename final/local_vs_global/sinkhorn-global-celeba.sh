@@ -24,6 +24,8 @@ exp=celebA
 zdim=64
 pz=sphere
 
+lr_schedule=manual
+
 train_size=5000
 recalculate_size=5000
 #nat_size=${train_size}
@@ -39,7 +41,7 @@ sinkhorn_epsilon=0.01
 nat_resampling=None
 
 name="sinkhorn-global-celeba_res=${nat_resampling}_exp=${exp}_batch_size=${bs}_lr=${lr}_train_size=${train_size}_rec_lambda=${rec_lambda}_sinkhorn_epsilon=${sinkhorn_epsilon}_wae_lambda=${wae_lambda}_${i}_${dt}"
-CUDA_VISIBLE_DEVICES=${i} python run.py --pz=${pz} --train_size=${train_size} \
+CUDA_VISIBLE_DEVICES=${i} python run.py --pz=${pz} --train_size=${train_size} --lr_schedule=${lr_schedule} \
     --z_test=${z_test} --z_test_scope=${z_test_scope} \
     --sinkhorn_sparse=False --enc_noise=deterministic --name="${name}" \
     --recalculate_size=${recalculate_size} --nat_size=${nat_size} --nat_resampling=${nat_resampling} --tag="sinkhorn,local_vs_global,global,final0" \
