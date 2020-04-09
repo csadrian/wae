@@ -30,9 +30,8 @@ parser.add_argument("--exp", default='mnist_small',
 parser.add_argument("--zdim",
                     help='dimensionality of the latent space',
                     type=int)
-parser.add_argument("--lr",
-                    help='ae learning rate',
-                    type=float)
+parser.add_argument("--lr", help='ae learning rate', type=float)
+parser.add_argument("--lr_schedule", dest='lr_schedule', default=None, help='lr schedule', type=str)
 parser.add_argument("--w_aef",
                     help='weight of ae fixedpoint cost',
                     type=float)
@@ -148,6 +147,9 @@ def main():
         opts['pz'] = FLAGS.pz
     if FLAGS.lr is not None:
         opts['lr'] = FLAGS.lr
+    if FLAGS.lr_schedule is not None:
+        opts['lr_schedule'] = FLAGS.lr_schedule
+
     if FLAGS.w_aef is not None:
         opts['w_aef'] = FLAGS.w_aef
     if FLAGS.z_test is not None:
