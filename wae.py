@@ -1007,9 +1007,8 @@ class WAE(object):
                     data_ids = all_data_ids[:opts['batch_size']]
                 else:
                     rnd_it = random.randint(0, batches_num-1)
-                    data_ids = np.arange(rnd_it*opts['batch_size'], (rnd_it+1)*opts['batch_size'])
-                    all_data_ids = data_ids
-
+                    all_data_ids = np.arange(0, self.train_size)
+                    data_ids = np.random.choice(self.train_size, opts['batch_size'], replace=False)
 
                 data_ids_mod = np.array([i for i in range(self.nat_pos, self.nat_pos + self.opts['batch_size'])])
                 batch_images = data.data[data_ids].astype(np.float)
