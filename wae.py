@@ -1065,6 +1065,8 @@ class WAE(object):
                 for key, value in self.get_tensors_to_log().items():
                     run_ops.append(value)
 
+                self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
+
                 run_result = self.sess.run(run_ops, feed_dict=feed_d)
                 [_, loss, loss_rec, loss_match, stay_loss, per_sample_rec_loss_np] = run_result[:len_orig_run_ops]
 
@@ -1106,7 +1108,6 @@ class WAE(object):
                
                 del batch_images
 
-                self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
 
 
                 self.x_rec_losses_np[data_ids] = per_sample_rec_loss_np
