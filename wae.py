@@ -35,7 +35,8 @@ import itertools
 
 class WAE(object):
 
-    def __init__(self, opts, train_size=0):
+    def __init__(self, opts, train_size=0, scope='default', data_shape=None):
+        self.scope=scope
 
         logging.error('Building the Tensorflow Graph')
 
@@ -52,9 +53,11 @@ class WAE(object):
 
         # -- Some of the parameters for future use
 
-        assert opts['dataset'] in datashapes, 'Unknown dataset.'
-        self.data_shape = datashapes[opts['dataset']]
-
+        if data_shape is None:
+            assert opts['dataset'] in datashapes, 'Unknown dataset.'
+            self.data_shape = datashapes[opts['dataset']]
+        else:
+            self.data_shape=data_shape
         # -- Placeholders
 
         self.add_inputs_placeholders()
@@ -139,7 +142,10 @@ class WAE(object):
         if 'w_aef' in opts and opts['w_aef'] > 0:
             improved_wae.add_aefixedpoint_cost(opts, self)
 
-        self.blurriness = self.compute_blurriness()
+        if len(self.data_shape) > 1:
+            self.blurriness = self.compute_blurriness()
+        else:
+            self.blurriness = tf.constant(0.0)
 
         if opts['e_pretrain']:
             self.loss_pretrain = self.pretrain_loss()
@@ -633,23 +639,23 @@ class WAE(object):
         loss_match = loss_Qz_trick
         return (loss_adversary, logits_Pz, logits_Qz), loss_match
 
-    @staticmethod
-    def reconstruction_loss(opts, real, reconstr):
+    #@staticmethod
+    def reconstruction_loss(self, opts, real, reconstr):
         # real = self.sample_points
         # reconstr = self.reconstructed
         if opts['cost'] == 'l2':
             # c(x,y) = ||x - y||_2
-            loss = tf.reduce_sum(tf.square(real - reconstr), axis=[1, 2, 3])
+            loss = tf.reduce_sum(tf.square(real - reconstr), axis=[i for i in range(1, len(self.data_shape)+1)])
             per_sample_loss = tf.sqrt(1e-08 + loss)
             loss = 0.2 * tf.reduce_mean(tf.sqrt(1e-08 + loss))
         elif opts['cost'] == 'l2sq':
             # c(x,y) = ||x - y||_2^2
-            loss = tf.reduce_sum(tf.square(real - reconstr), axis=[1, 2, 3])
+            loss = tf.reduce_sum(tf.square(real - reconstr), axis=[i for i in range(1, len(self.data_shape)+1)])
             per_sample_loss = loss
             loss = 0.05 * tf.reduce_mean(loss)
         elif opts['cost'] == 'l1':
             # c(x,y) = ||x - y||_1
-            loss = tf.reduce_sum(tf.abs(real - reconstr), axis=[1, 2, 3])
+            loss = tf.reduce_sum(tf.abs(real - reconstr), axis=[i for i in range(1, len(self.data_shape)+1)])
             per_sample_loss = loss
             loss = 0.02 * tf.reduce_mean(loss)
         else:
@@ -686,9 +692,9 @@ class WAE(object):
         opts = self.opts
         lr = opts['lr']
         lr_adv = opts['lr_adv']
-        z_adv_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='z_adversary')
-        encoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='encoder')
-        decoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
+        z_adv_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope+'z_adversary')
+        encoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope+'encoder')
+        decoder_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.scope+'generator')
         ae_vars = encoder_vars + decoder_vars
 
         if opts['verbose']:
@@ -807,7 +813,7 @@ class WAE(object):
                 # We will run 3 times from random inits
                 loss_prev = 10e5 # Any positive value would do
                 proj_vars = tf.get_collection(
-                    tf.GraphKeys.GLOBAL_VARIABLES, scope='leastGaussian2d')
+                    tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope+'leastGaussian2d')
                 self.sess.run(tf.variables_initializer(proj_vars))
                 step = 0
                 for _ in range(5000):
@@ -1284,8 +1290,8 @@ class WAE(object):
                         nat_targets_proj = self.nat_targets_np[:, :2]
 
                     # Making plots
-
-                    summary_plot, transport_plot = save_plots(opts, data.data[:self.num_pics],
+                    if len(data.data.shape) == 4:
+                        summary_plot, transport_plot = save_plots(opts, data.data[:self.num_pics],
                                data.test_data[:self.num_pics],
                                rec_train[:self.num_pics],
                                rec_test[:self.num_pics],
@@ -1296,6 +1302,8 @@ class WAE(object):
                                'res_e%04d_mb%05d.jpg' % (epoch, it)
                                #, P_np
                                )
+                    else:
+                        summary_plot, transport_plot = None, None
 
                     generated_batches = []
                     for l in range(10000//batch_size):
@@ -1316,8 +1324,9 @@ class WAE(object):
                         neptune.send_metric('blurriness', x=counter-1, y=np.min(gen_blurr))
                         neptune.send_metric('global_ot_loss', x=counter-1, y=global_sinkhorn_loss)
                         #neptune.send_image('transport_plot', transport_plot)
-                        print("skipping sending image, issues with neptune")
-                        neptune.send_image('summary_plot', summary_plot)
+                        #print("skipping sending image, issues with neptune")
+                        if summary_plot is not None:
+                            neptune.send_image('summary_plot', summary_plot)
 
         # Save the final model
         video.close()

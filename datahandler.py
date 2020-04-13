@@ -37,6 +37,8 @@ datashapes['noise_unif'] = [64, 64, 3]
 
 
 def _data_dir(opts):
+    if 'data_dir' not in opts:
+        return None
     if opts['data_dir'].startswith("/"):
         return opts['data_dir']
     else:

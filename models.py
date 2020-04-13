@@ -69,9 +69,13 @@ def encoder(opts, inputs, reuse=False, is_training=False):
 
         return out, noise_matrix, res
 
-def decoder(opts, noise, reuse=False, is_training=True):
-    assert opts['dataset'] in datashapes, 'Unknown dataset!'
-    output_shape = datashapes[opts['dataset']]
+def decoder(opts, noise, reuse=False, is_training=True, data_shape=None):
+    if opts['dataset'] is datashapes:
+        #assert opts['dataset'] in datashapes, 'Unknown dataset!'
+        output_shape = datashapes[opts['dataset']]
+    else:
+        output_shape = [opts['zdim']]
+
     num_units = opts['g_num_filters']
 
     with tf.variable_scope("generator", reuse=reuse):

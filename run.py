@@ -10,6 +10,8 @@ import utils
 import datetime
 import fideval
 import picture_plot
+import tensorflow as tf
+import datahandler
 
 import neptune
 
@@ -253,11 +255,35 @@ def main():
                 neptune.append_tag(tag)
 
         # Creating WAE model
-        wae = WAE(opts, train_size)
-        data.num_points = train_size
+        with tf.variable_scope('outer'):
+            wae = WAE(opts, train_size, scope='outer/')
+            data.num_points = train_size
 
-        # Training WAE
-        wae.train(data)
+            # Training WAE
+            wae.train(data)
+            x_latents = wae.recalculate_x_latents(data, train_size, opts['batch_size'])
+
+        with tf.variable_scope('inner'):
+            ###########
+            import copy
+            opts_inner = copy.deepcopy(opts)
+
+            opts_inner['e_arch'] = 'mlp'
+            opts_inner['g_arch'] = 'mlp'
+            opts_inner['g_num_layers'] = 3
+            opts_inner['g_num_filters'] = 256
+            opts_inner['e_num_layers'] = 3
+            opts_inner['e_num_filters'] = 256
+
+            wae_inner = WAE(opts_inner, train_size, scope='inner/', data_shape=[opts['zdim'] ])
+            class Object(object):
+                pass
+            data = Object()
+            data.num_points = train_size
+            data.data = x_latents
+            data.test_data = x_latents
+            data.data_shape=(opts['zdim'], )
+            wae_inner.train(data)
 
         if use_neptune:
             exp.stop()
