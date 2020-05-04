@@ -81,6 +81,7 @@ parser.add_argument('--sinkhorn_sparsifier', dest='sinkhorn_sparsifier', type=st
 parser.add_argument('--sparsifier_freq', dest='sparsifier_freq', type=int, default=None, help='Recalculate sparsified indices on every nth batch.')
 parser.add_argument('--sinkhorn_epsilon', dest='sinkhorn_epsilon', type=float, default=0.01, help='The epsilon for entropy regularized Sinkhorn')
 parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default=10, help='Sinkhorn rollout length')
+parser.add_argument('--sinkhorn_unbiased', dest='sinkhorn_unbiased', type=str2bool, default=False, help='Sinkhorn unbiased loss')
 
 # Params for extra regularizers
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
@@ -188,6 +189,7 @@ def main():
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
+    opts['sinkhorn_unbiased'] = FLAGS.sinkhorn_unbiased
     opts['feed_by_score_from_epoch']=FLAGS.feed_by_score_from_epoch
     opts['recalculate_size'] = FLAGS.recalculate_size
     opts['stay_lambda'] = FLAGS.stay_lambda

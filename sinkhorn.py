@@ -120,6 +120,15 @@ def SinkhornLoss(sources, targets, epsilon=0.01, niter=10):
     OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
     return OT, P_temp, P, f, g, C
 
+def SinkhornUnbiasedLoss(sources, targets, epsilon=0.01, niter=10):
+    C = pdist(sources, targets)
+    C_s = pdist(sources, sources)
+    C_t = pdist(targets, targets)
+    OT, P_temp, P, f, g = Sinkhorn(C, f=None, epsilon=epsilon, niter=niter)
+    OT_s, _, _, _, _ = Sinkhorn(C_s, f=None, epsilon=epsilon, niter=niter)
+    OT_t, _, _, _, _ = Sinkhorn(C_s, f=None, epsilon=epsilon, niter=niter)
+    return OT - 0.5 * OT_s - 0.5 * OT_t, P_temp, P, f, g, C
+
 
 def SparseSinkhornLoss(sources, targets, sparse_indices, epsilon=0.01, niter=10):
     sparse_xs = tf.gather(sources, sparse_indices[:, 0], validate_indices=False)

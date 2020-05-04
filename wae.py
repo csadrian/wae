@@ -32,6 +32,7 @@ import plot_syn
 from collections import OrderedDict
 from scipy.stats import norm
 import itertools
+import math
 
 class WAE(object):
 
@@ -276,6 +277,8 @@ class WAE(object):
 
         if opts['sinkhorn_sparse']:
             OT, P_temp, P, f, g, C = sinkhorn.SparseSinkhornLoss(sample_qz, sample_pz, sparse_indices=self.nat_sparse_indices, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
+        elif opts['sinkhorn_unbiased']:
+            OT, P_temp, P, f, g, C = sinkhorn.SinkhornUnbiasedLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
         else:
             OT, P_temp, P, f, g, C = sinkhorn.SinkhornLoss(sample_qz, sample_pz, epsilon=decayed_epsilon, niter=opts['sinkhorn_iters'])
 
@@ -839,7 +842,6 @@ class WAE(object):
         latents = np.concatenate(latents_list, axis=0)
         return latents
 
-
     def recalculate_x_latents(self, data, train_size, batch_size, overwrite_placeholder=True, ids=None):
         # Calculate latent image of the full dataset
         if ids is not None:
@@ -1022,7 +1024,10 @@ class WAE(object):
                     nat_targets_unif = nat_targets_np[:, :2]
                     if opts['pz'] == 'normal':
                         x_latents_unif = norm.cdf(x_latents_unif) * 2 - 1
-                        nat_targets_unif = norm.cdf(nat_targets_unif) * 2 - 1                            
+                        nat_targets_unif = norm.cdf(nat_targets_unif) * 2 - 1
+                    if opts['pz'] == 'sphere':
+                        x_latents_unif = norm.cdf(x_latents_unif * math.sqrt(opts['zdim'])) * 2 - 1
+                        nat_targets_unif = norm.cdf(nat_targets_unif * math.sqrt(opts['zdim'])) * 2 - 1
                     frame = sinkhorn.draw_edges(x_latents_unif, nat_targets_unif, VIDEO_SIZE, radius=1.5, edges=False)
                     video.write_frame(frame)
                     print("frame")
