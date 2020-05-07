@@ -37,7 +37,6 @@ class WAE(object):
 
     def __init__(self, opts, train_size=0, scope='default', data_shape=None):
         self.scope=scope
-
         logging.error('Building the Tensorflow Graph')
 
         logging.info('Setting seed to: ' + str(opts['seed']))
@@ -72,7 +71,7 @@ class WAE(object):
 
         # Encode the content of sample_points placeholder
         res = encoder(opts, inputs=self.sample_points,
-                      is_training=self.is_training)
+                      is_training=self.is_training, sample_pz=self.nat_targets)
         if opts['e_noise'] in ('deterministic', 'implicit', 'add_noise'):
             self.enc_mean, self.enc_sigmas = None, None
             if opts['e_noise'] == 'implicit':
@@ -275,7 +274,8 @@ class WAE(object):
     # TODO takes sparse indices from self.nat_sparse_indices, not good for test data.
     def sinkhorn_loss(self, sample_qz, sample_pz):
         opts = self.opts
-
+        if 'sinkhorn_off' in opts:
+            return tf.constant(0.0)
         #global_step = tf.train.get_or_create_global_step()
         #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
@@ -658,6 +658,10 @@ class WAE(object):
             loss = tf.reduce_sum(tf.abs(real - reconstr), axis=[i for i in range(1, len(self.data_shape)+1)])
             per_sample_loss = loss
             loss = 0.02 * tf.reduce_mean(loss)
+        elif opts['cost'] == 'cosine':
+            loss = tf.compat.v1.losses.cosine_distance(real, reconstr, axis=1)
+            per_sample_loss = loss
+            loss = tf.reduce_mean(loss)
         else:
             assert False, 'Unknown cost function %s' % opts['cost']
         return loss, per_sample_loss
@@ -897,6 +901,42 @@ class WAE(object):
             assert False, "unknown sparsifier kind"
 
         return sparsifier
+
+
+    def generate(self, input_noise=None, pics=True):
+        if input_noise is None:
+            print("Sampling from p(z) to generate.")
+            input_noise = self.sample_pz(self.opts['plot_num_pics'])
+        sample_gen = self.sess.run(
+                    self.decoded,
+                    feed_dict={self.sample_noise: input_noise,
+                               self.is_training: False})
+
+        if not pics:
+            return sample_gen
+
+        if self.opts['input_normalize_sym']:
+            sample_gen = sample_gen / 2. + 0.5
+
+        num_pics = self.opts['plot_num_pics']
+        num_cols = self.opts['plot_num_cols']
+
+        for sample in [sample_gen]:
+
+          assert len(sample) == self.opts['plot_num_pics']
+          pics = []
+          for idx in range(num_pics):
+            pics.append(sample[idx, :, :, :])
+
+        # Figuring out a layout
+        pics = np.array(pics)
+        image = np.concatenate(np.split(pics, num_cols), axis=2)
+        image = np.concatenate(image, axis=0)
+        
+        ax = plt.imshow(image, interpolation='none', vmin=0., vmax=1.)
+        plt.savefig("gen.jpg")
+        neptune.send_image('generated', 'gen.jpg')
+        return sample_gen
 
 
     def train(self, data):

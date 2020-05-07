@@ -3,7 +3,7 @@ import tensorflow as tf
 import ops
 from datahandler import datashapes
 
-def encoder(opts, inputs, reuse=False, is_training=False):
+def encoder(opts, inputs, reuse=False, is_training=False, sample_pz=None):
 
     if opts['e_noise'] == 'add_noise':
         # Particular instance of the implicit random encoder
@@ -30,6 +30,11 @@ def encoder(opts, inputs, reuse=False, is_training=False):
                 hi = tf.nn.relu(hi)
             if opts['e_noise'] != 'gaussian':
                 res = ops.linear(opts, hi, opts['zdim'], 'hfinal_lin')
+                if sample_pz is not None and 'attention' in opts and opts['attention']:
+                    res = tf.expand_dims(res, axis=1)
+                    keys = tf.Variable(sample_pz, trainable=True, name='attention_keys')
+                    res = tf.keras.layers.Attention()([res, sample_pz, keys])
+                    res = tf.reshape(res, (-1, opts['zdim']))
             else:
                 mean = ops.linear(opts, hi, opts['zdim'], 'mean_lin')
                 log_sigmas = ops.linear(opts, hi,
@@ -89,9 +94,15 @@ def decoder(opts, noise, reuse=False, is_training=True, data_shape=None):
                 if opts['batch_norm']:
                     layer_x = ops.batch_norm(
                         opts, layer_x, is_training, reuse, scope='h%d_bn' % i)
+            
             out = ops.linear(opts, layer_x,
                              np.prod(output_shape), 'h%d_lin' % (i + 1))
+            #out = noise + out
             out = tf.reshape(out, [-1] + list(output_shape))
+            if 'normalize_output_to_sphere' in opts and opts['normalize_output_to_sphere']:
+                # Projecting back to the sphere
+                print("projecting generator output to sphere")
+                return tf.nn.l2_normalize(out, dim=1), out
             if opts['input_normalize_sym']:
                 return tf.nn.tanh(out), out
             else:
@@ -108,6 +119,7 @@ def decoder(opts, noise, reuse=False, is_training=True, data_shape=None):
         else:
             raise ValueError('%s Unknown decoder architecture' % opts['g_arch'])
 
+        
         return res
 
 def dcgan_encoder(opts, inputs, is_training=False, reuse=False):

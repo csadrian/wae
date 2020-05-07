@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import sys
 import logging
 import argparse
@@ -88,6 +89,9 @@ parser.add_argument('--sinkhorn_iters', dest='sinkhorn_iters', type=int, default
 parser.add_argument('--zxz_lambda', dest='zxz_lambda', type=float, default=0.0, help='Lambda for zxz loss')
 parser.add_argument('--stay_lambda', dest='stay_lambda', type=float, default=0.0, help='Lambda for stay loss.')
 parser.add_argument('--mover_ratio', dest='mover_ratio', type=float, default=1.0, help='Ratio of movers.')
+
+parser.add_argument('--attention', dest='attention', type=str2bool, default=False, help='Use attention.')
+
 
 FLAGS = parser.parse_args()
 
@@ -187,6 +191,10 @@ def main():
         opts['nat_size'] = FLAGS.train_size
     opts['nat_resampling'] = FLAGS.nat_resampling
 
+
+
+    opts['attention'] = FLAGS.attention
+
     opts['sinkhorn_sparse'] = FLAGS.sinkhorn_sparse
     opts['sinkhorn_sparsifier'] = FLAGS.sinkhorn_sparsifier
     opts['sparsifier_freq'] = FLAGS.sparsifier_freq
@@ -255,6 +263,9 @@ def main():
                 neptune.append_tag(tag)
 
         # Creating WAE model
+        opts['sinkhorn_off'] = True
+        opts['save_every_epoch'] = 100
+
         with tf.variable_scope('outer'):
             wae = WAE(opts, train_size, scope='outer/')
             data.num_points = train_size
@@ -263,18 +274,37 @@ def main():
             wae.train(data)
             x_latents = wae.recalculate_x_latents(data, train_size, opts['batch_size'])
 
+        
+        if use_neptune:
+            exp.stop()
+            exp = neptune.create_experiment(params=opts, name=opts['name'], upload_source_files=['wae.py', 'run.py', 'models.py'])
+
+            for tag in opts['tags'].split(','):
+                neptune.append_tag(tag)
+            neptune.append_tag('second_stage')
         with tf.variable_scope('inner'):
             ###########
             import copy
             opts_inner = copy.deepcopy(opts)
+            del opts_inner['sinkhorn_off']
 
             opts_inner['e_arch'] = 'mlp'
             opts_inner['g_arch'] = 'mlp'
             opts_inner['g_num_layers'] = 3
-            opts_inner['g_num_filters'] = 256
+            opts_inner['g_num_filters'] = 512
             opts_inner['e_num_layers'] = 3
-            opts_inner['e_num_filters'] = 256
+            opts_inner['e_num_filters'] = 512
+            opts_inner['lambda'] = 10.0
+            #opts_inner['length_lambda'] = 0.01
 
+            opts_inner['lr'] = 0.01
+            opts_inner['lr_schedule'] = 'plateau'
+            opts_inner['epoch_num'] = 600
+            opts_inner['batch_norm'] = True
+            opts_inner['normalize_output_to_sphere'] = True
+            opts_inner['cost'] = 'cosine'
+
+            #opts_inner['attention'] = True
             wae_inner = WAE(opts_inner, train_size, scope='inner/', data_shape=[opts['zdim'] ])
             class Object(object):
                 pass
@@ -284,6 +314,10 @@ def main():
             data.test_data = x_latents
             data.data_shape=(opts['zdim'], )
             wae_inner.train(data)
+        new_latents = wae_inner.generate(pics=False)
+        print(np.linalg.norm(new_latents, axis=1))
+        wae.generate(new_latents)
+        wae.generate(x_latents[:30])
 
         if use_neptune:
             exp.stop()
