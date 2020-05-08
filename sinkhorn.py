@@ -86,6 +86,7 @@ def Sinkhorn(C, f=None, epsilon=None, niter=10):
     if f is None:
         f = tf.zeros(n, np.float32)
     for i in range(niter):
+        # with tf.device('/device:GPU:'+str((i+1)%8)):    
         f, g = Sinkhorn_step(C, f, epsilon)
 
     P_temp = -f[:, None] - C
