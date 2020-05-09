@@ -272,7 +272,8 @@ class WAE(object):
     # TODO takes sparse indices from self.nat_sparse_indices, not good for test data.
     def sinkhorn_loss(self, sample_qz, sample_pz):
         opts = self.opts
-
+        if opts['z_test'] == 'sinkhorn_new':
+            return tf.constant(0.0)
         #global_step = tf.train.get_or_create_global_step()
         #decayed_epsilon = tf.train.cosine_decay_restarts(learning_rate=args.epsilon, global_step=global_step, first_decay_steps=20, alpha=0.0001)
         decayed_epsilon = tf.constant(opts['sinkhorn_epsilon'])
@@ -409,7 +410,8 @@ class WAE(object):
                 return self.grad_ph
               return tf.identity(x), grad
             sample_qz = inject_grad_layer(sample_qz)
-            loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+            #loss_match = self.sinkhorn_loss(sample_qz, sample_pz)
+            loss_match = tf.constant(0.0)
             self.add_to_log("sinkhorn_ot", loss_match)
 
         elif opts['z_test'] == 'sinkhorn':
@@ -920,7 +922,7 @@ class WAE(object):
         self.assign_sinkhorn_f = tf.assign(self.sinkhorn_f, self.assign_inp)
         self.assign_sinkhorn_g = tf.assign(self.sinkhorn_g, self.assign_inp)
 
-        self.partial_xs = tf.slice(self.x_latents, [self.sinkhorn_block_from_idx, 0], [self.opts['sinkhorn_block_size'], -1])
+        self.partial_xs = tf.slice(self.x_latents_with_current_batch, [self.sinkhorn_block_from_idx, 0], [self.opts['sinkhorn_block_size'], -1])
         self.partial_ys = tf.slice(self.nat_targets, [self.sinkhorn_block_from_idx, 0], [self.opts['sinkhorn_block_size'], -1])
 
         self.partial_dist = sinkhorn.pdist(self.partial_xs, tf.stop_gradient(self.nat_targets))
@@ -937,20 +939,22 @@ class WAE(object):
         self.partial_scale_g = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_g / epsilon), -1)
         self.partial_scale_f = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_f / epsilon), 0)
 
-        self.partial_xs_grad, = tf.gradients(tf.reduce_sum((tf.exp(self.partial_dist_scaled / tf.constant(epsilon))) * tf.stop_gradient(self.partial_dist)), [self.partial_xs])
+
+        self.partial_loss = tf.reduce_sum((tf.exp(self.partial_dist_scaled / tf.constant(epsilon))) * tf.stop_gradient(self.partial_dist))
+
+        self.partial_xs_grad, = tf.gradients(self.partial_loss, [self.partial_xs])
 
 
-    def sinkhorn_scaling(self, t):
+    def sinkhorn_scaling(self, t, feed_d):
         block_size = self.opts['sinkhorn_block_size']
         block_iters = self.train_size // block_size
 
-        my_dict = {}
         scaling = np.zeros(self.train_size)
         for i in range(block_iters):
-            my_dict[self.sinkhorn_block_from_idx] = i*block_size
-            my_dict[self.sinkhorn_block_to_idx] = (i+1)*block_size
+            feed_d[self.sinkhorn_block_from_idx] = i*block_size
+            feed_d[self.sinkhorn_block_to_idx] = (i+1)*block_size
 
-            partial_scaling = self.sess.run(t, feed_dict=my_dict)
+            partial_scaling = self.sess.run(t, feed_dict=feed_d)
             scaling[i*block_size:(i+1)*block_size] = partial_scaling
 
         return scaling
@@ -964,26 +968,27 @@ class WAE(object):
 
         for j in range(self.opts['sinkhorn_iters']):
 
-            g = self.sinkhorn_scaling(self.partial_scale_g)
+            g = self.sinkhorn_scaling(self.partial_scale_g, feed_d)
             self.sess.run(self.assign_sinkhorn_g, feed_dict={self.assign_inp: g})
 
-            f = self.sinkhorn_scaling(self.partial_scale_f)
+            f = self.sinkhorn_scaling(self.partial_scale_f, feed_d)
             self.sess.run(self.assign_sinkhorn_f, feed_dict={self.assign_inp: f})
 
         grads = np.zeros(shape=(self.train_size, self.opts['zdim']))
         # Calc grads
+        loss_value = 0.0
         for i in range(block_iters):
-            my_dict[self.sinkhorn_block_from_idx] = i*block_size
-            my_dict[self.sinkhorn_block_to_idx] = (i+1)*block_size
+            feed_d[self.sinkhorn_block_from_idx] = i*block_size
+            feed_d[self.sinkhorn_block_to_idx] = (i+1)*block_size
 
-            partial_xs_grad = self.sess.run(self.partial_xs_grad, feed_dict=my_dict)
+            partial_xs_grad, partial_loss = self.sess.run([self.partial_xs_grad, self.partial_loss], feed_dict=feed_d)
             grads[i*block_size:(i+1)*block_size] = partial_xs_grad
-
-        return -grads
+            loss_value += partial_loss
+        return -grads, loss_value
 
 
     def train(self, data):
-        self.opts['sinkhorn_block_size'] = 1000
+        self.opts['sinkhorn_block_size'] = 5000
         opts = self.opts
         if opts['verbose']:
             logging.error(opts)
@@ -1162,9 +1167,9 @@ class WAE(object):
                     run_ops.append(value)
 
                 self.recalculate_x_latents(data, self.train_size, opts['batch_size'], overwrite_placeholder=True, ids=all_data_ids)
-
-                sg_np = self.my_sinkhorn_grad(feed_d)
+                sg_np, loss_value_np = self.my_sinkhorn_grad(feed_d)
                 feed_d[self.grad_ph] = sg_np
+                neptune.send_metric('ot_loss_new', x=counter, y=loss_value_np)
 
                 run_result = self.sess.run(run_ops, feed_dict=feed_d)
                 [_, loss, loss_rec, loss_match, stay_loss, per_sample_rec_loss_np] = run_result[:len_orig_run_ops]
@@ -1304,7 +1309,7 @@ class WAE(object):
                         feed_d_loss[self.nat_sparse_indices] = self.indices_full
 
                     global_sinkhorn_loss = self.sess.run(self.sinkhorn_loss_tf, feed_dict=feed_d_loss)
-
+                    
                     # Auto-encoding training images
 
                     feed_d_test = {}
