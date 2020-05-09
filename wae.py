@@ -914,15 +914,11 @@ class WAE(object):
         self.sinkhorn_block_from_idx = tf.placeholder(dtype=tf.int64)
         self.sinkhorn_block_to_idx = tf.placeholder(dtype=tf.int64)
 
-        self.sinkhorn_f = tf.Variable(np.ones(self.train_size), dtype=tf.float32)
-        self.sinkhorn_g = tf.Variable(np.ones(self.train_size), dtype=tf.float32)
+        self.sinkhorn_f = tf.Variable(np.zeros(self.train_size), dtype=tf.float32)
+        self.sinkhorn_g = tf.Variable(np.zeros(self.train_size), dtype=tf.float32)
         self.assign_inp = tf.placeholder(shape=(self.train_size), dtype=tf.float32)
         self.assign_sinkhorn_f = tf.assign(self.sinkhorn_f, self.assign_inp)
         self.assign_sinkhorn_g = tf.assign(self.sinkhorn_g, self.assign_inp)
-
-
-        self.sinkhorn_transport_partial = 0.0
-        self.sinkhorn_transport_partial_transposed = 0.0
 
         self.partial_xs = tf.slice(self.x_latents, [self.sinkhorn_block_from_idx, 0], [self.opts['sinkhorn_block_size'], -1])
         self.partial_ys = tf.slice(self.nat_targets, [self.sinkhorn_block_from_idx, 0], [self.opts['sinkhorn_block_size'], -1])
@@ -933,15 +929,15 @@ class WAE(object):
         self.sinkhorn_f_sliced = tf.slice(self.sinkhorn_f, [self.sinkhorn_block_from_idx], [self.opts['sinkhorn_block_size']])
         self.sinkhorn_g_sliced = tf.slice(self.sinkhorn_g, [self.sinkhorn_block_from_idx], [self.opts['sinkhorn_block_size']])
 
-        self.partial_dist_scaled = - self.partial_dist - tf.expand_dims(tf.stop_gradient(self.sinkhorn_f_sliced), -1) - tf.stop_gradient(self.sinkhorn_g)
+        self.partial_dist_scaled = - self.partial_dist - tf.stop_gradient(self.sinkhorn_f) - tf.expand_dims(tf.stop_gradient(self.sinkhorn_g_sliced), -1)
         #self.partial_dist_scaled_g = - tf.transpose(self.partial_dist_t) - tf.expand_dims(tf.stop_gradient(self.sinkhorn_f_sliced), -1)
-        self.partial_dist_scaled_g = - self.partial_dist_t - tf.stop_gradient(self.sinkhorn_f_sliced) # tehát f a megfelelo soroknak a ...
-        self.partial_dist_scaled_f = - self.partial_dist - tf.expand_dims(tf.stop_gradient(self.sinkhorn_g_sliced), -1)
+        self.partial_dist_scaled_g = - self.partial_dist - tf.stop_gradient(self.sinkhorn_f)
+        self.partial_dist_scaled_f = - self.partial_dist_t - tf.expand_dims(tf.stop_gradient(self.sinkhorn_g), -1)
 
-        self.partial_scale_g = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_g / epsilon), 0)
-        self.partial_scale_f = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_f / epsilon), -1)
+        self.partial_scale_g = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_g / epsilon), -1)
+        self.partial_scale_f = epsilon * tf.reduce_logsumexp(( self.partial_dist_scaled_f / epsilon), 0)
 
-        self.partial_xs_grad, = tf.gradients(tf.reduce_sum((tf.exp(self.partial_dist_scaled / tf.constant(epsilon))) * self.partial_dist), [self.partial_xs])
+        self.partial_xs_grad, = tf.gradients(tf.reduce_sum((tf.exp(self.partial_dist_scaled / tf.constant(epsilon))) * tf.stop_gradient(self.partial_dist)), [self.partial_xs])
 
 
     def sinkhorn_scaling(self, t):
